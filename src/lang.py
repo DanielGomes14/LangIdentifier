@@ -9,6 +9,7 @@ class Lang:
         self.k = k
         self.alpha = alpha
         self.fcm = FCM(k,alpha,reference_filename)
+
         self.n_bits = 0 # number of bits to compress the text
     
     
@@ -22,14 +23,12 @@ class Lang:
 
         with open(self.target_filename, 'r') as f:
             target_text = f.read()
-            
+
             context = target_text[:self.k]
         
             for next_char in target_text[self.k:]:
                 context_probabilities = self.fcm.get_context_probabilities(context)
-                print(self.fcm.alphabet)
-                print(next_char)
-                next_char_index = self.fcm.get_context_index(next_char)
+                next_char_index = self.fcm.alphabet[next_char]
 
                 self.n_bits -= math.log10(context_probabilities[next_char_index])
 

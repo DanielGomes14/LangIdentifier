@@ -16,6 +16,7 @@ class Main:
 
 
     def get_results(self) -> None:
+        print(f"Entropy of reference file {self.lang.fcm.entropy}")
         print(f"Number of bits necessary to compress target file with a trained model {self.lang.n_bits}")
 
 
