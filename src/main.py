@@ -1,5 +1,6 @@
 import argparse
 from lang import Lang
+from findlang import FindLang
 import sys
 import logging
 
@@ -7,17 +8,32 @@ FILENAME = "./../example/example.txt"
 
 class Main:
     def __init__(self) -> None:
-        ref_file_name, target_filename, k, alpha = self.check_arguments()
-        self.lang = Lang(ref_file_name, target_filename, k, alpha)
-        self.lang.train()
-        self.lang.bits_compress_target()
+        self.lang = None
+        self.findlang = None
+        
+        ref_file_names, target_filename, k, alpha = self.check_arguments()
+
+        if len(ref_file_names) == 1:
+            self.lang = Lang(ref_file_names[0], target_filename, k, alpha)
+            self.lang.train()
+            self.lang.bits_compress_target()
+        else:
+            self.findlang = FindLang(ref_file_names, target_filename, k, alpha)
+            self.findlang.train()
+            self.findlang.guess_language()
 
         self.get_results()
 
 
     def get_results(self) -> None:
-        print(f"Entropy of reference file {self.lang.fcm.entropy}")
-        print(f"Number of bits necessary to compress target file with a trained model {self.lang.n_bits}")
+        if self.lang:
+            print(f"Entropy of reference file {self.lang.fcm.entropy}")
+            print(f"Total characters in target file {self.lang.t_number_chars}")
+            print(f"Estimated average number of bits {self.lang.t_number_chars*self.lang.fcm.entropy}")
+            print(f"Number of bits necessary to compress target file with a trained model {self.lang.n_bits}")
+        if self.findlang:
+            [print(f"Number of bits for {lang.ref_filename}: {lang.n_bits}") for lang in self.findlang.langs]
+            print(f"Guessed Language: {self.findlang.language}")
 
 
     def usage(self):
@@ -33,7 +49,7 @@ class Main:
             prog="Finite Context Model",
             usage=self.usage
         )
-        arg_parser.add_argument('-r', nargs=1, default=[FILENAME])
+        arg_parser.add_argument('-r', nargs='*', default=[FILENAME])
         arg_parser.add_argument('-t', nargs=1, default=[FILENAME])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
@@ -45,12 +61,12 @@ class Main:
             self.usage()
             sys.exit(0)
 
-        ref_file_name = args.r[0]
+        ref_file_names = args.r
         target_filename = args.t[0]
         k = args.k[0]
         alpha = args.a[0]
 
-        return ref_file_name, target_filename, k, alpha
+        return ref_file_names, target_filename, k, alpha
 
 
 if __name__ =="__main__":
