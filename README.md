@@ -4,4 +4,4 @@ Second Project of the Algorithmic Information Theory Course.
 
 ## Documentation
 
-Online documentation available at: https://danielgomes14.github.io/LangIdentifier/
+Online documentation available at: https://DanielGomes14.github.io/LangIdentifier/
