@@ -1,0 +1,15 @@
+site_name: Language Recognition System
+repo_url: https://github.com/DanielGomes14/LangIdentifier/
+repo_name: Language Recognition
+
+theme:
+   name: material
+   palette:
+      primary: light blue
+      accent: light blue
+   features:
+    - navigation.instant
+    - navigation.top
+
+plugins:
+  - render_swagger
