@@ -15,11 +15,10 @@ class Main:
 
         if len(ref_file_names) == 1:
             self.lang = Lang(ref_file_names[0], target_filename, k, alpha)
-            self.lang.train()
-            self.lang.bits_compress_target()
+            self.lang.run()
         else:
             self.findlang = FindLang(ref_file_names, target_filename, k, alpha)
-            self.findlang.train()
+            self.findlang.run_langs()
             self.findlang.guess_language()
 
         self.get_results()

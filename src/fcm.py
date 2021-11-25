@@ -24,10 +24,11 @@ class FCM:
 
 
 
-    def run(self):
-        # get alphabet and store characters' indexes
-        self.read_file()
-
+    def run(self, get_alphabet=True):
+        if get_alphabet:
+            # get alphabet and store characters' indexes
+            self.read_file()
+    
         # initialize table that stores occurencies
         self.setup_table()
 

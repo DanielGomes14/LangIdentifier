@@ -14,13 +14,13 @@ class FindLang:
         self.language = ''
     
     
-    def train(self):
+    def run_langs(self):
         logging.info(f"Starting to train FCM with files {self.reference_filenames}")
-        [lang.train() for lang in self.langs]
+        [lang.run() for lang in self.langs]
  
 
     def guess_language(self):
-        necessary_bits = [lang.bits_compress_target() for lang in self.langs]
+        necessary_bits = [lang.n_bits for lang in self.langs]
         logging.info(f"Finished calculating the number of bits necessary with all reference files.")
         
         min_bits = min(necessary_bits)
