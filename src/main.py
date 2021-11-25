@@ -4,20 +4,19 @@ from findlang import FindLang
 import sys
 import logging
 
-FILENAME = "./../example/example.txt"
 
 class Main:
     def __init__(self) -> None:
         self.lang = None
         self.findlang = None
         
-        ref_file_names, target_filename, k, alpha = self.check_arguments()
+        ref_filename, dir_ref_files, target_filename, k, alpha = self.check_arguments()
 
-        if len(ref_file_names) == 1:
-            self.lang = Lang(ref_file_names[0], target_filename, k, alpha)
+        if not dir_ref_files:
+            self.lang = Lang(ref_filename, target_filename, k, alpha)
             self.lang.run()
         else:
-            self.findlang = FindLang(ref_file_names, target_filename, k, alpha)
+            self.findlang = FindLang(dir_ref_files, target_filename, k, alpha)
             self.findlang.run_langs()
             self.findlang.guess_language()
 
@@ -48,8 +47,9 @@ class Main:
             prog="Finite Context Model",
             usage=self.usage
         )
-        arg_parser.add_argument('-r', nargs='*', default=[FILENAME])
-        arg_parser.add_argument('-t', nargs=1, default=[FILENAME])
+        arg_parser.add_argument('-r', nargs=1, default=["./../datasets/language_train/english.utf8"])
+        arg_parser.add_argument('-d', nargs=1, default=None)
+        arg_parser.add_argument('-t', nargs=1, default=["./../datasets/language_test/english.utf8"])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
         args = None
@@ -60,12 +60,13 @@ class Main:
             self.usage()
             sys.exit(0)
 
-        ref_file_names = args.r
+        ref_filename = args.r[0]
+        dir_ref_files = args.d[0]
         target_filename = args.t[0]
         k = args.k[0]
         alpha = args.a[0]
 
-        return ref_file_names, target_filename, k, alpha
+        return ref_filename, dir_ref_files, target_filename, k, alpha
 
 
 if __name__ =="__main__":

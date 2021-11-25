@@ -4,18 +4,19 @@ from lang import Lang
 
 
 class FindLang:
-    def __init__(self, reference_filenames, target_filename, k=3, alpha=0.1) -> None:
-        self.reference_filenames = reference_filenames
+    def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.1) -> None:
+        self.dir_ref_files = dir_ref_files
         self.target_filename = target_filename
         self.k = k
         self.alpha = alpha
-        self.langs = [Lang(ref_file,target_filename,k,alpha) for ref_file in reference_filenames]
+        #TODO: get files from dir_ref_files
+        self.langs = [Lang(ref_file,target_filename,k,alpha) for ref_file in dir_ref_files]
 
         self.language = ''
     
     
     def run_langs(self):
-        logging.info(f"Starting to train FCM with files {self.reference_filenames}")
+        logging.info(f"Starting to train FCM with files inside {self.dir_ref_files}")
         [lang.run() for lang in self.langs]
  
 
