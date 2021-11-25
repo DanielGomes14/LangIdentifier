@@ -1,6 +1,7 @@
 import argparse
 from lang import Lang
 from findlang import FindLang
+from locatelang import LocateLang
 import sys
 import logging
 
@@ -9,16 +10,19 @@ class Main:
     def __init__(self) -> None:
         self.lang = None
         self.findlang = None
-        
-        ref_filename, dir_ref_files, target_filename, k, alpha = self.check_arguments()
+        self.locatelang = None
+        ref_filename, dir_ref_files, target_filename, locate_lang, k, alpha = self.check_arguments()
 
         if not dir_ref_files:
             self.lang = Lang(ref_filename, target_filename, k, alpha)
             self.lang.run()
+            self.lang.bits_compress_target()
+        elif locate_lang:
+            self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha)
+            self.locatelang.run()
         else:
             self.findlang = FindLang(dir_ref_files, target_filename, k, alpha)
-            self.findlang.run_langs()
-            self.findlang.guess_language()
+            self.findlang.run()
 
         self.get_results()
 
@@ -32,6 +36,8 @@ class Main:
         if self.findlang:
             [print(f"Number of bits for {lang.ref_filename}: {lang.n_bits}") for lang in self.findlang.langs]
             print(f"Guessed Language: {self.findlang.language}")
+        if self.locatelang:
+            [print(f"Chunk ID: {chunk}, language: {lang}") for chunk, lang in self.locatelang.chunk_lang.items()]
 
 
     def usage(self):
@@ -52,6 +58,8 @@ class Main:
         arg_parser.add_argument('-t', nargs=1, default=["./../datasets/languages_test/English.utf8"])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
+        arg_parser.add_argument('-l', action='store_true')
+
         args = None
 
         try:
@@ -66,7 +74,7 @@ class Main:
         k = args.k[0]
         alpha = args.a[0]
 
-        return ref_filename, dir_ref_files, target_filename, k, alpha
+        return ref_filename, dir_ref_files, target_filename, args.l, k, alpha
 
 
 if __name__ =="__main__":

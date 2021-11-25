@@ -47,36 +47,29 @@ class Lang:
 		
 		self.train_fcm()
 
-		self.bits_compress_target()
-
 	
-	def bits_compress_target(self):
+	def bits_compress_target(self, target_text=None):
 		logging.info(f"Calculating number of bits to compress {self.target_filename} with a trained FCM with the {self.ref_filename} file.")
+		self.n_bits = 0
 
-		with open(self.target_filename, 'r') as f:
+		if not target_text:
+			try:
+				f = open(self.target_filename, 'r')
+			except FileNotFoundError:
+				logging.error(f"Could not open file {self.target_filename}")
+				sys.exit()
 			target_text = f.read()
+		
 
-			context = target_text[:self.k]
+		context = target_text[:self.k]
 
-			# alpha_x_alphabet_size = self.fcm.alpha * self.fcm.alphabet_size
-			# total_possible_seq = self.fcm.alphabet_size ** (self.k + 1)
-			# total_occ_alpha = self.fcm.total_occurrences + self.fcm.alpha * total_possible_seq
+		for next_char in target_text[self.k:]:
+			context_probabilities = self.fcm.get_context_probabilities(context)
 
-			for next_char in target_text[self.k:]:
-				context_probabilities = self.fcm.get_context_probabilities(context)
+			next_char_index = self.fcm.alphabet[next_char]
+			self.n_bits -= log2(context_probabilities[next_char_index])
 
-				# if self.fcm.is_hash_table:
-				# 	context_probability = (self.fcm.prob_table[context]["total_occur"] + alpha_x_alphabet_size)\
-				# 		/ total_occ_alpha
-				# else:
-				# 	context_index = self.fcm.get_context_index(context)
-				# 	context_probability = (self.fcm.prob_table[context_index][-1] + alpha_x_alphabet_size)\
-                #     	/ total_occ_alpha
-
-				next_char_index = self.fcm.alphabet[next_char]
-				self.n_bits -= log2(context_probabilities[next_char_index])
-
-				context = context[1:] + next_char
+			context = context[1:] + next_char
 
 		logging.info(f"Finished calculating. The number of bits necessary are {self.n_bits}")
 
