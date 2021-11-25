@@ -18,7 +18,7 @@ class LocateLang:
 		self.chunk_lang = {}
 
 		self.CHUNK_SIZE = 10_000
-		self.THRESHOLD = 0.05
+		self.THRESHOLD = 0.02
 
 
 	def get_langs(self):
@@ -31,9 +31,9 @@ class LocateLang:
 
 
 
-	def guess_language(self, text, last_lang):
+	def guess_language(self, text, last_lang=None):
 		if not last_lang:
-			necessary_bits = [lang.bits_compress_target(text) for lang in self.langs]
+			necessary_bits = [lang.bits_compress_target(text) for lang in self.langs if lang != last_lang]
 			min_bits = min(necessary_bits)
 			return self.langs[necessary_bits.index(min_bits)], min_bits
 
@@ -49,9 +49,9 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		last_n_bits = 0
-		last_lang = None
+		last_n_bits = 1
 		n_chunk = 0
+		lang = None
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
@@ -59,17 +59,20 @@ class LocateLang:
 			if target_text == '':
 				return
 
-			lang, n_bits = self.guess_language(target_text, last_lang)
-			
-			if last_lang and lang.ref_filename == last_lang.ref_filename:
-				if n_bits / last_n_bits <= self.THRESHOLD:
-					last_lang = None
-			else:
-				last_lang = lang
+			lang, n_bits = self.guess_language(target_text, lang)
+
+			print()
+			print(n_bits / last_n_bits - 1)
+			print()
+
+			if n_bits / last_n_bits - 1 >= self.THRESHOLD:
+				lang, n_bits = self.guess_language(target_text)
+	
 			last_n_bits = n_bits
 
-			logging.info(f"Guessed language: {lang.ref_filename}")
 			self.chunk_lang[n_chunk] = lang.ref_filename
+			logging.info(f"Guessed language: {lang.ref_filename}")
+
 			n_chunk += 1
 
 
