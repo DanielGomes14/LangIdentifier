@@ -47,9 +47,9 @@ class Main:
             prog="Finite Context Model",
             usage=self.usage
         )
-        arg_parser.add_argument('-r', nargs=1, default=["./../datasets/language_train/english.utf8"])
-        arg_parser.add_argument('-d', nargs=1, default=None)
-        arg_parser.add_argument('-t', nargs=1, default=["./../datasets/language_test/english.utf8"])
+        arg_parser.add_argument('-r', nargs=1, default=["./../datasets/languages_train/English.utf8"])
+        arg_parser.add_argument('-d', nargs=1, default=[None])
+        arg_parser.add_argument('-t', nargs=1, default=["./../datasets/languages_test/English.utf8"])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
         args = None
