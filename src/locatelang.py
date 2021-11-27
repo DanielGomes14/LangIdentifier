@@ -49,7 +49,7 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		n_chunk, lang, last_n_bits = 0, None, 1
+		n_chunk, lang, last_n_bits = 0, None, 0
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
@@ -63,7 +63,7 @@ class LocateLang:
 			print(n_bits / last_n_bits - 1)
 			print()
 
-			if n_bits / last_n_bits - 1 >= self.THRESHOLD:
+			if last_n_bits and n_bits / last_n_bits - 1 >= self.THRESHOLD:
 				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
 	
 			last_n_bits = n_bits
