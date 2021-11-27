@@ -31,9 +31,9 @@ class LocateLang:
 
 
 
-	def guess_language(self, text, last_lang=None):
-		if not last_lang:
-			necessary_bits = [lang.bits_compress_target(text) for lang in self.langs if lang != last_lang]
+	def guess_language(self, text, last_lang, ignore_lang=False):
+		if not last_lang or ignore_lang:
+			necessary_bits = [lang.bits_compress_target(text) if lang != last_lang else lang.n_bits for lang in self.langs]
 			min_bits = min(necessary_bits)
 			return self.langs[necessary_bits.index(min_bits)], min_bits
 
@@ -44,14 +44,12 @@ class LocateLang:
 
 	def locate_chunks_lang(self):
 		try:
-			f = open(self.target_filename, 'r')
+			f = open(self.target_filename, 'r', encoding='utf-8')
 		except FileNotFoundError:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		last_n_bits = 1
-		n_chunk = 0
-		lang = None
+		n_chunk, lang, last_n_bits = 0, None, 1
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
@@ -66,7 +64,7 @@ class LocateLang:
 			print()
 
 			if n_bits / last_n_bits - 1 >= self.THRESHOLD:
-				lang, n_bits = self.guess_language(target_text)
+				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
 	
 			last_n_bits = n_bits
 

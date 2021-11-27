@@ -44,7 +44,7 @@ class FCM:
 
     def read_file(self):
         try:
-            file_text = open(self.filename,"r")
+            file_text = open(self.filename, "r", encoding='utf-8')
         except FileNotFoundError:
             print(f"Could not Open file {self.filename}")
             sys.exit(0)
@@ -75,7 +75,7 @@ class FCM:
     def set_occurrences(self):
         context = ""
 
-        file_text = open(self.filename,"r")
+        file_text = open(self.filename, "r", encoding='utf-8')
         for line in file_text:
             for char in line:
                 # We should only use sequences of size k

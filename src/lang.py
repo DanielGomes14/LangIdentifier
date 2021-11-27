@@ -23,7 +23,7 @@ class Lang:
 	
 	def merge_alphabets(self):
 		try:
-			file_text = open(self.target_filename,"r")
+			file_text = open(self.target_filename, "r", encoding='utf-8')
 		except FileNotFoundError:
 			print(f"Could not open file {self.target_filename}")
 			sys.exit(0)
@@ -54,7 +54,7 @@ class Lang:
 
 		if not target_text:
 			try:
-				f = open(self.target_filename, 'r')
+				f = open(self.target_filename, 'r', encoding='utf-8')
 			except FileNotFoundError:
 				logging.error(f"Could not open file {self.target_filename}")
 				sys.exit()
