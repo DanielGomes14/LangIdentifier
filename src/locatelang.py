@@ -49,7 +49,7 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		n_chunk, lang, last_n_bits = 0, None, 0
+		n_chunk, lang, previous_n_bits = 0, None, 0
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
@@ -59,14 +59,10 @@ class LocateLang:
 
 			lang, n_bits = self.guess_language(target_text, lang)
 
-			print()
-			print(n_bits / last_n_bits - 1)
-			print()
-
-			if last_n_bits and n_bits / last_n_bits - 1 >= self.THRESHOLD:
+			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.THRESHOLD:
 				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
-	
-			last_n_bits = n_bits
+
+			previous_n_bits = n_bits
 
 			self.chunk_lang[n_chunk] = lang.ref_filename
 			logging.info(f"Guessed language: {lang.ref_filename}")
@@ -74,8 +70,26 @@ class LocateLang:
 			n_chunk += 1
 
 
+	def get_t_alphabet(self):
+		try:
+			file_text = open(self.target_filename, "r", encoding='utf-8')
+		except FileNotFoundError:
+			print(f"Could not open file {self.target_filename}")
+			sys.exit(0)
+
+		t_alphabet = set()
+
+		for line in file_text:
+			for char in line:
+				t_alphabet.add(char)
+		
+		return t_alphabet
+
+
 	def run(self):
+		t_alphabet = self.get_t_alphabet()
+
 		logging.info(f"Starting to train FCM with files inside {self.dir_ref_files}")
-		[lang.run() for lang in self.langs]
+		[lang.run(t_alphabet) for lang in self.langs]
 
 		self.locate_chunks_lang()

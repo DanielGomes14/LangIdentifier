@@ -21,7 +21,7 @@ class Lang:
 		self.fcm.run(get_alphabet=False)
 
 	
-	def merge_alphabets(self):
+	def merge_alphabets(self, t_alphabet=None):
 		try:
 			file_text = open(self.target_filename, "r", encoding='utf-8')
 		except FileNotFoundError:
@@ -30,20 +30,28 @@ class Lang:
 
 		max_index = max(self.fcm.alphabet.values())
 
-		for line in file_text:
-			for char in line:
-				self.t_number_chars += 1
-				if char not in self.fcm.alphabet:
+		if t_alphabet:
+			for line in file_text:
+				for char in line:
+					self.t_number_chars += 1
+					if char not in self.fcm.alphabet:
+						max_index += 1
+						self.fcm.alphabet[char] = max_index
+						self.fcm.alphabet_size += 1
+						logging.info(f'Adding char {char} to reference alphabet')
+		else:
+			for char in t_alphabet:
+				if char not in self.fc.alphabet:
 					max_index += 1
 					self.fcm.alphabet[char] = max_index
 					self.fcm.alphabet_size += 1
 					logging.info(f'Adding char {char} to reference alphabet')
 
 
-	def run(self):
+	def run(self, t_alphabet=None):
 		self.fcm.read_file()
 
-		self.merge_alphabets()
+		self.merge_alphabets(t_alphabet)
 		
 		self.train_fcm()
 
