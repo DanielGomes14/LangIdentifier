@@ -34,7 +34,7 @@ class Main:
             print(f"Estimated average number of bits {self.lang.t_number_chars*self.lang.fcm.entropy}")
             print(f"Number of bits necessary to compress target file with a trained model {self.lang.n_bits}")
         if self.findlang:
-            [print(f"Number of bits for {lang.ref_filename}: {lang.n_bits}") for lang in self.findlang.langs]
+            [print(f"Number of bits for {lang.lang_name}: {lang.n_bits}") for lang in self.findlang.langs]
             print(f"Guessed Language: {self.findlang.language}")
         if self.locatelang:
             [print(f"Position {pos}, language: {lang}") for pos, lang in self.locatelang.location_langs.items()]

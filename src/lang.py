@@ -14,10 +14,12 @@ class Lang:
 
         self.t_number_chars = 0 # number of chars in target file
         self.n_bits = 0 # number of bits to compress the text
+
+        self.lang_name = self.ref_filename.split('.')[-2].split('/')[-1]
     
     
     def train_fcm(self):
-        logging.info(f"Starting to train FCM with file {self.ref_filename}")
+        logging.info(f"Starting to train FCM with {self.lang_name}")
         self.fcm.run(get_alphabet=False)
 
     
@@ -57,7 +59,7 @@ class Lang:
 
     
     def bits_compress_target(self, target_text=None):
-        # logging.info(f"Calculating number of bits to compress with a trained FCM with the {self.ref_filename} file.")
+        # logging.info(f"Calculating number of bits to compress with a trained FCM with {self.lang_name}.")
         self.n_bits = 0
 
         if not target_text:

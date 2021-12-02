@@ -5,7 +5,7 @@ from lang import Lang
 import os
 import sys
 from collections import defaultdict, Counter
-
+import matplotlib.pyplot as plt
 
 class LocateLang:
 	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.1) -> None:
@@ -56,7 +56,7 @@ class LocateLang:
 		total_bits = 0
 		for lang in self.langs:
 			n_bits = lang.bits_compress_target(text)
-			langs_bits[lang.ref_filename] = n_bits
+			langs_bits[lang.lang_name] = n_bits
 			total_bits += n_bits
 		
 		return langs_bits, total_bits
@@ -86,14 +86,19 @@ class LocateLang:
 		average_bits = total_bits / ind / len(self.langs)
 		
 		logging.info(f"Average number of bits for each window: {average_bits}")
-		
+
+		x_pos = [end_pos for _, end_pos in window_langs.keys()]
+		lang_y = defaultdict(lambda: [])
+
+		# at least 25 % smaller than average
+		threshold = average_bits * (1 - self.WINDOW_THRESHOLD)
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
-				# 25 % smaller than average
-				if (average_bits - n_bits) / average_bits >= self.WINDOW_THRESHOLD:
+				lang_y[lang].append(n_bits)
+				if n_bits <= threshold:
 					location_langs[w].append(lang)
 
-		return location_langs
+		return location_langs, x_pos, lang_y, average_bits
 
 
 	def locate_chunks_lang(self):
@@ -119,8 +124,8 @@ class LocateLang:
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
-			location_langs[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.ref_filename)
-			logging.info(f"Guessed language: {lang.ref_filename}")
+			location_langs[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.lang_name)
+			logging.info(f"Guessed language: {lang.lang_name}")
 
 			n_chunk += 1
 
@@ -157,7 +162,19 @@ class LocateLang:
 		# last location
 		if (previous_start_pos, previous_end_pos) not in self.location_langs:
 			self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
-		
+	
+
+	def plot_results(self, x_pos, lang_y, average_bits):
+		for lang, y in lang_y.items():
+			plt.plot(x_pos, y, 'o', label=lang)
+
+		plt.plot(x_pos, [average_bits] * len(x_pos), label='Average Bits')
+		plt.plot(x_pos, [average_bits * (1 - self.WINDOW_THRESHOLD)] * len(x_pos), label='Threshold')
+
+		plt.ylim(0, average_bits + 1)
+		plt.legend()
+		plt.show()
+
 
 	def run(self):
 		t_alphabet = self.get_t_alphabet()
@@ -166,6 +183,9 @@ class LocateLang:
 		[lang.run(t_alphabet) for lang in self.langs]
 
 		if self.strategy == "chunks":
-			self.merge_locations(self.locate_chunks_lang())
+			location_langs = self.locate_chunks_lang()
 		else:
-			self.merge_locations(self.locate_windows_lang())
+			location_langs, x_pos, lang_y, average_bits = self.locate_windows_lang()
+			self.plot_results(x_pos, lang_y, average_bits)
+
+		self.merge_locations(location_langs)

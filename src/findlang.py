@@ -58,5 +58,5 @@ class FindLang:
 		min_bits = min(necessary_bits)
 		logging.info(f"Finished calculating minimum value of bits")
 
-		self.language = self.langs[necessary_bits.index(min_bits)].ref_filename
+		self.language = self.langs[necessary_bits.index(min_bits)].lang_name
 		logging.info(f"Guessed language: {self.language}")
