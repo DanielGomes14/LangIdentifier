@@ -57,7 +57,7 @@ class Lang:
 
     
     def bits_compress_target(self, target_text=None):
-        logging.info(f"Calculating number of bits to compress with a trained FCM with the {self.ref_filename} file.")
+        # logging.info(f"Calculating number of bits to compress with a trained FCM with the {self.ref_filename} file.")
         self.n_bits = 0
 
         if not target_text:
@@ -79,6 +79,6 @@ class Lang:
 
             context = context[1:] + next_char
 
-        logging.info(f"The number of bits necessary are {self.n_bits}")
+        # logging.info(f"The number of bits necessary are {self.n_bits}")
 
         return self.n_bits

@@ -37,7 +37,7 @@ class Main:
             [print(f"Number of bits for {lang.ref_filename}: {lang.n_bits}") for lang in self.findlang.langs]
             print(f"Guessed Language: {self.findlang.language}")
         if self.locatelang:
-            [print(f"Chunk ID: {chunk}, language: {lang}") for chunk, lang in self.locatelang.chunk_lang.items()]
+            [print(f"Position {pos}, language: {lang}") for pos, lang in self.locatelang.location_lang.items()]
 
 
     def usage(self):

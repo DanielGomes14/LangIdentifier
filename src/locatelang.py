@@ -16,11 +16,20 @@ class LocateLang:
 
 		self.langs = self.get_langs()
 
-		self.chunk_lang = {}
+		self.location_lang = defaultdict(lambda: [])
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.02
-		self.WINDOW_THRESHOLD = 0.5
+		self.WINDOW_THRESHOLD = 0.2
+
+		self.strategy = self.get_best_strategy()
+
+	
+	def get_best_strategy(self):
+		# less than .5 MB
+		if os.path.getsize(self.target_filename) * 10 ** -6 < .5:
+			return "windows"
+		return "chunks"
 
 
 	def get_langs(self):
@@ -30,7 +39,6 @@ class LocateLang:
 		except:
 			logging.info(f"Directory {self.dir_ref_files} not found")
 			sys.exit()
-
 
 
 	def guess_language(self, text, last_lang, ignore_lang=False):
@@ -64,11 +72,10 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		# TODO: CAGAR NESTE LIXO INEFICIENTE
+		# TODO: adjust window size
 		window_size = 5
 		window_langs = {}
 		total_bits = 0
-		final_window_langs = defaultdict(lambda: [])
 		target_text = f.read()
 
 		window = target_text[:window_size]
@@ -80,19 +87,20 @@ class LocateLang:
 
 			window = window[1:] + next_char
 
-		print(window_langs)
-		
 		average_bits = total_bits / ind / len(self.langs)
 		
-		print(average_bits)
+		logging.info(f"Average number of bits for each window: {average_bits}")
 		
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
-				if abs(n_bits - average_bits) <= self.WINDOW_THRESHOLD:
-					final_window_langs[w].append(lang)
+				print(lang)
+				print(n_bits)
+				# 20 % smaller than average is considered as a language of window
+				if (average_bits - n_bits) / average_bits >= self.WINDOW_THRESHOLD:
+					self.location_lang[w].append(lang)
+					print((average_bits - n_bits) / average_bits)
+			print()
 
-		print(final_window_langs)
-		
 
 	def locate_chunks_lang(self):
 		try:
@@ -115,8 +123,8 @@ class LocateLang:
 				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
 
 			previous_n_bits = n_bits
-
-			self.chunk_lang[n_chunk] = lang.ref_filename
+			start_pos = n_chunk * self.CHUNK_SIZE
+			self.location_lang[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.ref_filename)
 			logging.info(f"Guessed language: {lang.ref_filename}")
 
 			n_chunk += 1
@@ -144,4 +152,7 @@ class LocateLang:
 		logging.info(f"Starting to train FCM with files inside {self.dir_ref_files}")
 		[lang.run(t_alphabet) for lang in self.langs]
 
-		self.locate_chunks_lang()
+		if self.strategy == "chunks":
+			self.locate_chunks_lang()
+		else:
+			self.locate_windows_lang()
