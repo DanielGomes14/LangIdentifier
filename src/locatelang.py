@@ -4,7 +4,7 @@ from fcm import FCM
 from lang import Lang
 import os
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 
 class LocateLang:
@@ -16,18 +16,18 @@ class LocateLang:
 
 		self.langs = self.get_langs()
 
-		self.location_lang = defaultdict(lambda: [])
+		self.location_langs = {}
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.02
-		self.WINDOW_THRESHOLD = 0.2
+		self.WINDOW_THRESHOLD = 0.25
 
 		self.strategy = self.get_best_strategy()
 
 	
 	def get_best_strategy(self):
-		# less than .5 MB
-		if os.path.getsize(self.target_filename) * 10 ** -6 < .5:
+		# less than .2 MB
+		if os.path.getsize(self.target_filename) * 10 ** -6 < .2:
 			return "windows"
 		return "chunks"
 
@@ -62,8 +62,6 @@ class LocateLang:
 		return langs_bits, total_bits
 	
 
-	# '1-4' -> {'PT': 3.6222, 'ES': 4.5324}
-	# '2-5' -> {'PT': 3.6222, 'ES': 4.5324}
 	def locate_windows_lang(self):
 		logging.info("Starting Locating Langs for each window")
 		try:
@@ -71,12 +69,10 @@ class LocateLang:
 		except FileNotFoundError:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
-
+		
 		# TODO: adjust window size
-		window_size = 5
-		window_langs = {}
-		total_bits = 0
-		target_text = f.read()
+		location_langs, window_size, window_langs, total_bits, target_text =\
+			defaultdict(lambda: []), 5, {}, 0, f.read()
 
 		window = target_text[:window_size]
 
@@ -93,13 +89,11 @@ class LocateLang:
 		
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
-				print(lang)
-				print(n_bits)
-				# 20 % smaller than average is considered as a language of window
+				# 25 % smaller than average
 				if (average_bits - n_bits) / average_bits >= self.WINDOW_THRESHOLD:
-					self.location_lang[w].append(lang)
-					print((average_bits - n_bits) / average_bits)
-			print()
+					location_langs[w].append(lang)
+
+		return location_langs
 
 
 	def locate_chunks_lang(self):
@@ -109,13 +103,14 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		n_chunk, lang, previous_n_bits = 0, None, 0
+		location_langs, n_chunk, lang, previous_n_bits =\
+			defaultdict(lambda: []), 0, None, 0
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
 
 			if target_text == '':
-				return
+				return location_langs
 
 			lang, n_bits = self.guess_language(target_text, lang)
 
@@ -124,7 +119,7 @@ class LocateLang:
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
-			self.location_lang[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.ref_filename)
+			location_langs[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.ref_filename)
 			logging.info(f"Guessed language: {lang.ref_filename}")
 
 			n_chunk += 1
@@ -146,6 +141,24 @@ class LocateLang:
 		return t_alphabet
 
 
+	def merge_locations(self, location_langs):
+		previous_langs, previous_start_pos, previous_end_pos = [], 0, 0
+
+		for loc, langs in location_langs.items():
+			start_pos, end_pos = loc
+			if Counter(previous_langs) == Counter(langs):
+				previous_end_pos = end_pos
+			else:
+				if previous_end_pos:
+					self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+				previous_start_pos, previous_end_pos = start_pos, end_pos
+			previous_langs = langs
+
+		# last location
+		if (previous_start_pos, previous_end_pos) not in self.location_langs:
+			self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+		
+
 	def run(self):
 		t_alphabet = self.get_t_alphabet()
 
@@ -153,6 +166,6 @@ class LocateLang:
 		[lang.run(t_alphabet) for lang in self.langs]
 
 		if self.strategy == "chunks":
-			self.locate_chunks_lang()
+			self.merge_locations(self.locate_chunks_lang())
 		else:
-			self.locate_windows_lang()
+			self.merge_locations(self.locate_windows_lang())
