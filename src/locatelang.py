@@ -4,6 +4,7 @@ from fcm import FCM
 from lang import Lang
 import os
 import sys
+from collections import defaultdict
 
 
 class LocateLang:
@@ -18,7 +19,8 @@ class LocateLang:
 		self.chunk_lang = {}
 
 		self.CHUNK_SIZE = 10_000
-		self.THRESHOLD = 0.02
+		self.CHUNKS_THRESHOLD = 0.02
+		self.WINDOW_THRESHOLD = 0.5
 
 
 	def get_langs(self):
@@ -39,8 +41,58 @@ class LocateLang:
 
 		necessary_bits = last_lang.bits_compress_target(text)
 		return last_lang, necessary_bits
+	
+	
+	def get_langs_bits(self, text):
+		langs_bits = {}
+		total_bits = 0
+		for lang in self.langs:
+			n_bits = lang.bits_compress_target(text)
+			langs_bits[lang.ref_filename] = n_bits
+			total_bits += n_bits
+		
+		return langs_bits, total_bits
+	
 
+	# '1-4' -> {'PT': 3.6222, 'ES': 4.5324}
+	# '2-5' -> {'PT': 3.6222, 'ES': 4.5324}
+	def locate_windows_lang(self):
+		logging.info("Starting Locating Langs for each window")
+		try:
+			f = open(self.target_filename, 'r', encoding='utf-8')
+		except FileNotFoundError:
+			logging.error(f"Could not open file {self.target_filename}")
+			sys.exit(0)
 
+		# TODO: CAGAR NESTE LIXO INEFICIENTE
+		window_size = 5
+		window_langs = {}
+		total_bits = 0
+		final_window_langs = defaultdict(lambda: [])
+		target_text = f.read()
+
+		window = target_text[:window_size]
+
+		for ind, next_char in enumerate(target_text[window_size:]):
+			langs_bits, w_total_bits = self.get_langs_bits(window)
+			total_bits += w_total_bits
+			window_langs[(ind, ind + window_size)] = langs_bits
+
+			window = window[1:] + next_char
+
+		print(window_langs)
+		
+		average_bits = total_bits / ind / len(self.langs)
+		
+		print(average_bits)
+		
+		for w, langs in window_langs.items():
+			for lang, n_bits in langs.items():
+				if abs(n_bits - average_bits) <= self.WINDOW_THRESHOLD:
+					final_window_langs[w].append(lang)
+
+		print(final_window_langs)
+		
 
 	def locate_chunks_lang(self):
 		try:
@@ -59,7 +111,7 @@ class LocateLang:
 
 			lang, n_bits = self.guess_language(target_text, lang)
 
-			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.THRESHOLD:
+			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.CHUNKS_THRESHOLD:
 				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
 
 			previous_n_bits = n_bits
