@@ -6,6 +6,7 @@ import os
 import sys
 from collections import defaultdict, Counter
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
 
 class LocateLang:
 	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.1) -> None:
@@ -20,7 +21,7 @@ class LocateLang:
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.02
-		self.WINDOW_THRESHOLD = 0.25
+		self.WINDOW_THRESHOLD = 0.60
 
 		self.strategy = self.get_best_strategy()
 
@@ -90,7 +91,7 @@ class LocateLang:
 		x_pos = [end_pos for _, end_pos in window_langs.keys()]
 		lang_y = defaultdict(lambda: [])
 
-		# at least 25 % smaller than average
+		# at least 60 % smaller than average
 		threshold = average_bits * (1 - self.WINDOW_THRESHOLD)
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
@@ -164,15 +165,27 @@ class LocateLang:
 			self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
 	
 
-	def plot_results(self, x_pos, lang_y, average_bits):
-		for lang, y in lang_y.items():
-			plt.plot(x_pos, y, 'o', label=lang)
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None):
+		if x_pos:
+			for lang, y in lang_y.items():
+				plt.plot(x_pos, y, 'o', label=lang)
 
-		plt.plot(x_pos, [average_bits] * len(x_pos), label='Average Bits')
-		plt.plot(x_pos, [average_bits * (1 - self.WINDOW_THRESHOLD)] * len(x_pos), label='Threshold')
+			plt.plot(x_pos, [average_bits] * len(x_pos), label='Average Bits')
+			plt.plot(x_pos, [average_bits * (1 - self.WINDOW_THRESHOLD)] * len(x_pos), label='Threshold')
 
-		plt.ylim(0, average_bits + 1)
-		plt.legend()
+			plt.ylim(0, average_bits + 1)
+			plt.legend()
+		else:
+			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs)}
+			colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
+			label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs)}
+
+			for loc, langs in self.location_langs.items():
+				for lang in langs:
+					plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
+			
+			plt.yticks(list(label_langs.values()), list(label_langs.keys()))
+
 		plt.show()
 
 
@@ -189,3 +202,5 @@ class LocateLang:
 			self.plot_results(x_pos, lang_y, average_bits)
 
 		self.merge_locations(location_langs)
+
+		self.plot_results()
