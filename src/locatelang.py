@@ -7,6 +7,8 @@ import sys
 from collections import defaultdict, Counter
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
+import matplotlib.patches as mpatches
+
 
 class LocateLang:
 	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.1) -> None:
@@ -20,7 +22,7 @@ class LocateLang:
 		self.location_langs = {}
 
 		self.CHUNK_SIZE = 10_000
-		self.CHUNKS_THRESHOLD = 0.02
+		self.CHUNKS_THRESHOLD = 0.1
 		self.WINDOW_THRESHOLD = 0.60
 
 		self.strategy = self.get_best_strategy()
@@ -42,14 +44,14 @@ class LocateLang:
 			sys.exit()
 
 
-	def guess_language(self, text, last_lang, ignore_lang=False):
+	def guess_language(self, text, last_lang, ignore_lang=False, y_axis=None):
 		if not last_lang or ignore_lang:
-			necessary_bits = [lang.bits_compress_target(text) if lang != last_lang else lang.n_bits for lang in self.langs]
-			min_bits = min(necessary_bits)
-			return self.langs[necessary_bits.index(min_bits)], min_bits
+			lang_bits = [lang.bits_compress_target(text) if lang != last_lang else lang.n_bits for lang in self.langs]
+			min_bits = min(lang_bits)
+			return self.langs[lang_bits.index(min_bits)], min_bits, lang_bits
 
-		necessary_bits = last_lang.bits_compress_target(text)
-		return last_lang, necessary_bits
+		lang_bits = [last_lang.bits_compress_target(text)]
+		return last_lang, lang_bits[0], lang_bits
 	
 	
 	def get_langs_bits(self, text):
@@ -109,23 +111,28 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		location_langs, n_chunk, lang, previous_n_bits =\
-			defaultdict(lambda: []), 0, None, 0
+		location_langs, n_chunk, lang, previous_n_bits, y_axis_lang_bits =\
+			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: [])
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
 
 			if target_text == '':
-				return location_langs
-
-			lang, n_bits = self.guess_language(target_text, lang)
+				return location_langs, y_axis_lang_bits
+			
+			start_pos = n_chunk * self.CHUNK_SIZE
+			pos = (start_pos, start_pos + self.CHUNK_SIZE)
+			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
 
 			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.CHUNKS_THRESHOLD:
-				lang, n_bits = self.guess_language(target_text, lang, ignore_lang=True)
+				lang, n_bits, lang_bits = self.guess_language(target_text, lang, ignore_lang=True)
+				[y_axis_lang_bits[self.langs[i].lang_name].append([pos, bits]) for i, bits in enumerate(lang_bits)]
+			else:
+				y_axis_lang_bits[lang.lang_name].append([pos, n_bits])
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
-			location_langs[(start_pos, start_pos + self.CHUNK_SIZE)].append(lang.lang_name)
+			location_langs[pos].append(lang.lang_name)
 			logging.info(f"Guessed language: {lang.lang_name}")
 
 			n_chunk += 1
@@ -165,7 +172,7 @@ class LocateLang:
 			self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
 	
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, y_axis_lang_bits=None):
 		if x_pos:
 			for lang, y in lang_y.items():
 				plt.plot(x_pos, y, 'o', label=lang)
@@ -179,13 +186,20 @@ class LocateLang:
 			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs)}
 			colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
 			label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs)}
+			patches = [mpatches.Patch(color=color, label=lang_name) for lang_name, color in label_colors.items()]
 
-			for loc, langs in self.location_langs.items():
-				for lang in langs:
-					plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
+			if y_axis_lang_bits:
+				for lang, points_bits in y_axis_lang_bits.items():
+					for point_bits in points_bits:
+						plt.plot(point_bits[0], [point_bits[1]] * 2, color=label_colors[lang])
+			else:
+				for loc, langs in self.location_langs.items():
+					for lang in langs:
+						plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
 			
-			plt.yticks(list(label_langs.values()), list(label_langs.keys()))
-
+				plt.yticks(list(label_langs.values()), list(label_langs.keys()))
+			
+			plt.legend(handles=patches)
 		plt.show()
 
 
@@ -196,10 +210,11 @@ class LocateLang:
 		[lang.run(t_alphabet) for lang in self.langs]
 
 		if self.strategy == "chunks":
-			location_langs = self.locate_chunks_lang()
+			location_langs, y_axis_lang_bits = self.locate_chunks_lang()
+			self.plot_results(y_axis_lang_bits=y_axis_lang_bits)
 		else:
 			location_langs, x_pos, lang_y, average_bits = self.locate_windows_lang()
-			self.plot_results(x_pos, lang_y, average_bits)
+			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
 
 		self.merge_locations(location_langs)
 
