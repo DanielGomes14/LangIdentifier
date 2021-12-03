@@ -11,7 +11,7 @@ class Main:
         self.lang = None
         self.findlang = None
         self.locatelang = None
-        ref_filename, dir_ref_files, target_filename, locate_lang, k, alpha = self.check_arguments()
+        ref_filename, dir_ref_files, target_filename, locate_lang, compare_langs, k, alpha = self.check_arguments()
 
         if not dir_ref_files:
             self.lang = Lang(ref_filename, target_filename, k, alpha)
@@ -19,13 +19,12 @@ class Main:
             self.lang.bits_compress_target()
         elif locate_lang:
             self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha)
-            self.locatelang.run()
+            self.locatelang.run(compare_langs)
         else:
             self.findlang = FindLang(dir_ref_files, target_filename, k, alpha)
             self.findlang.run()
 
         self.get_results()
-
 
     def get_results(self) -> None:
         if self.lang:
@@ -59,6 +58,7 @@ class Main:
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
         arg_parser.add_argument('-l', action='store_true')
+        arg_parser.add_argument('-c', action='store_true')
 
         args = None
 
@@ -74,7 +74,7 @@ class Main:
         k = args.k[0]
         alpha = args.a[0]
 
-        return ref_filename, dir_ref_files, target_filename, args.l, k, alpha
+        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha
 
 
 if __name__ =="__main__":

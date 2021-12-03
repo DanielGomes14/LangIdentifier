@@ -58,9 +58,10 @@ class Lang:
         self.train_fcm()
 
     
-    def bits_compress_target(self, target_text=None):
+    def bits_compress_target(self, target_text=None, calc_average=False):
         # logging.info(f"Calculating number of bits to compress with a trained FCM with {self.lang_name}.")
         self.n_bits = 0
+        operations = 0
 
         if not target_text:
             try:
@@ -79,8 +80,12 @@ class Lang:
             next_char_index = self.fcm.alphabet[next_char]
             self.n_bits -= log2(context_probabilities[next_char_index])
 
+            operations += 1
             context = context[1:] + next_char
 
+        if calc_average:
+            average = self.n_bits / operations
+            return average
         # logging.info(f"The number of bits necessary are {self.n_bits}")
 
         return self.n_bits

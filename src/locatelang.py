@@ -23,7 +23,8 @@ class LocateLang:
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.1
-		self.WINDOW_THRESHOLD = 0.60
+		self.AVERAGE_THRESHOLD = 0.60
+		self.WINDOW_SIZE = 5 * self.k
 
 		self.strategy = self.get_best_strategy()
 
@@ -63,9 +64,43 @@ class LocateLang:
 			total_bits += n_bits
 		
 		return langs_bits, total_bits
-	
+
+
+	def get_lang_below_threshold(self, text, thresholds):
+		langs = []
+		for lang in self.langs:
+			average_bits = lang.bits_compress_target(text, calc_average=True)
+			if average_bits <= thresholds[lang.lang_name]:
+				langs.append(lang.lang_name)
+		return langs
+
 
 	def locate_windows_lang(self):
+		#TODO: Change this to a function
+		logging.info("Starting Locating Langs for each window")
+		try:
+			f = open(self.target_filename, 'r', encoding='utf-8')
+		except FileNotFoundError:
+			logging.error(f"Could not open file {self.target_filename}")
+			sys.exit(0)
+
+		# TODO: adjust window size
+		location_langs, target_text =\
+			defaultdict(lambda: []), f.read()
+
+		thresholds = {lang.lang_name: lang.fcm.entropy for lang in self.langs}
+
+		window = target_text[:self.WINDOW_SIZE]
+
+		for ind, next_char in enumerate(target_text[self.WINDOW_SIZE:]):
+			location_langs[(ind, ind + self.WINDOW_SIZE)] = self.get_lang_below_threshold(window, thresholds)
+
+			window = window[1:] + next_char
+
+		return location_langs
+
+
+	def compare_lang_averages(self):
 		logging.info("Starting Locating Langs for each window")
 		try:
 			f = open(self.target_filename, 'r', encoding='utf-8')
@@ -74,15 +109,15 @@ class LocateLang:
 			sys.exit(0)
 		
 		# TODO: adjust window size
-		location_langs, window_size, window_langs, total_bits, target_text =\
-			defaultdict(lambda: []), 5, {}, 0, f.read()
+		location_langs, window_langs, total_bits, target_text =\
+			defaultdict(lambda: []), {}, 0, f.read()
 
-		window = target_text[:window_size]
+		window = target_text[:self.WINDOW_SIZE]
 
-		for ind, next_char in enumerate(target_text[window_size:]):
+		for ind, next_char in enumerate(target_text[self.WINDOW_SIZE:]):
 			langs_bits, w_total_bits = self.get_langs_bits(window)
 			total_bits += w_total_bits
-			window_langs[(ind, ind + window_size)] = langs_bits
+			window_langs[(ind, ind + self.WINDOW_SIZE)] = langs_bits
 
 			window = window[1:] + next_char
 
@@ -94,7 +129,7 @@ class LocateLang:
 		lang_y = defaultdict(lambda: [])
 
 		# at least 60 % smaller than average
-		threshold = average_bits * (1 - self.WINDOW_THRESHOLD)
+		threshold = average_bits * (1 - self.AVERAGE_THRESHOLD)
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
 				lang_y[lang].append(n_bits)
@@ -155,7 +190,8 @@ class LocateLang:
 
 
 	def merge_locations(self, location_langs):
-		previous_langs, previous_start_pos, previous_end_pos = [], 0, 0
+		previous_langs, previous_start_pos, previous_end_pos, final_location_langs =\
+			[], 0, 0, {}
 
 		for loc, langs in location_langs.items():
 			start_pos, end_pos = loc
@@ -163,22 +199,23 @@ class LocateLang:
 				previous_end_pos = end_pos
 			else:
 				if previous_end_pos:
-					self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+					final_location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
 				previous_start_pos, previous_end_pos = start_pos, end_pos
 			previous_langs = langs
 
 		# last location
-		if (previous_start_pos, previous_end_pos) not in self.location_langs:
-			self.location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+		if (previous_start_pos, previous_end_pos) not in final_location_langs:
+			final_location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+		return final_location_langs
 	
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, y_axis_lang_bits=None):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, y_axis_lang_bits=None, final_location_langs={}):
 		if x_pos:
 			for lang, y in lang_y.items():
 				plt.plot(x_pos, y, 'o', label=lang)
 
 			plt.plot(x_pos, [average_bits] * len(x_pos), label='Average Bits')
-			plt.plot(x_pos, [average_bits * (1 - self.WINDOW_THRESHOLD)] * len(x_pos), label='Threshold')
+			plt.plot(x_pos, [average_bits * (1 - self.AVERAGE_THRESHOLD)] * len(x_pos), label='Threshold')
 
 			plt.ylim(0, average_bits + 1)
 			plt.legend()
@@ -193,7 +230,7 @@ class LocateLang:
 					for point_bits in points_bits:
 						plt.plot(point_bits[0], [point_bits[1]] * 2, color=label_colors[lang])
 			else:
-				for loc, langs in self.location_langs.items():
+				for loc, langs in final_location_langs.items():
 					for lang in langs:
 						plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
 			
@@ -203,7 +240,7 @@ class LocateLang:
 		plt.show()
 
 
-	def run(self):
+	def run(self, compare_langs=False):
 		t_alphabet = self.get_t_alphabet()
 
 		logging.info(f"Starting to train FCM with files inside {self.dir_ref_files}")
@@ -213,9 +250,11 @@ class LocateLang:
 			location_langs, y_axis_lang_bits = self.locate_chunks_lang()
 			self.plot_results(y_axis_lang_bits=y_axis_lang_bits)
 		else:
-			location_langs, x_pos, lang_y, average_bits = self.locate_windows_lang()
+			location_langs = self.locate_windows_lang()
+
+		if compare_langs:
+			avg_location_langs, x_pos, lang_y, average_bits = self.compare_lang_averages()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
+			self.plot_results(final_location_langs=self.merge_locations(avg_location_langs))
 
-		self.merge_locations(location_langs)
-
-		self.plot_results()
+		self.plot_results(final_location_langs=self.merge_locations(location_langs))
