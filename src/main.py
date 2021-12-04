@@ -56,7 +56,7 @@ class Main:
         arg_parser.add_argument('-d', nargs=1, default=[None])
         arg_parser.add_argument('-t', nargs=1, default=["./../datasets/languages_test/English.utf8"])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
-        arg_parser.add_argument('-a', nargs=1, type=float, default=[0.1])
+        arg_parser.add_argument('-a', nargs=1, type=float, default=[0.01])
         arg_parser.add_argument('-l', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
 

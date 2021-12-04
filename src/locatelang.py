@@ -24,6 +24,7 @@ class LocateLang:
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.1
 		self.AVERAGE_THRESHOLD = 0.60
+		# TODO: adjust window size
 		self.WINDOW_SIZE = 5 * self.k
 
 		self.strategy = self.get_best_strategy()
@@ -66,10 +67,11 @@ class LocateLang:
 		return langs_bits, total_bits
 
 
-	def get_lang_below_threshold(self, text, thresholds):
+	def get_lang_below_threshold(self, text, thresholds, lang_y):
 		langs = []
 		for lang in self.langs:
 			average_bits = lang.bits_compress_target(text, calc_average=True)
+			lang_y[lang.lang_name].append(average_bits)
 			if average_bits <= thresholds[lang.lang_name]:
 				langs.append(lang.lang_name)
 		return langs
@@ -84,20 +86,21 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		# TODO: adjust window size
-		location_langs, target_text =\
-			defaultdict(lambda: []), f.read()
+		window_langs, target_text, lang_y =\
+			defaultdict(lambda: []), f.read(), defaultdict(lambda: [])
 
 		thresholds = {lang.lang_name: lang.fcm.entropy for lang in self.langs}
 
 		window = target_text[:self.WINDOW_SIZE]
 
 		for ind, next_char in enumerate(target_text[self.WINDOW_SIZE:]):
-			location_langs[(ind, ind + self.WINDOW_SIZE)] = self.get_lang_below_threshold(window, thresholds)
+			window_langs[(ind, ind + self.WINDOW_SIZE)] = self.get_lang_below_threshold(window, thresholds, lang_y)
 
 			window = window[1:] + next_char
 
-		return location_langs
+		x_pos = [end_pos for _, end_pos in window_langs.keys()]
+
+		return window_langs, x_pos, lang_y, thresholds
 
 
 	def compare_lang_averages(self):
@@ -108,7 +111,6 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 		
-		# TODO: adjust window size
 		location_langs, window_langs, total_bits, target_text =\
 			defaultdict(lambda: []), {}, 0, f.read()
 
@@ -209,20 +211,25 @@ class LocateLang:
 		return final_location_langs
 	
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, y_axis_lang_bits=None, final_location_langs={}):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, y_axis_lang_bits=None, final_location_langs={}):
+		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
+		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs)}
+		
 		if x_pos:
 			for lang, y in lang_y.items():
-				plt.plot(x_pos, y, 'o', label=lang)
+				plt.plot(x_pos, y, 'o', label=f"{lang} Average Bits", color=label_colors[lang])
 
-			plt.plot(x_pos, [average_bits] * len(x_pos), label='Average Bits')
-			plt.plot(x_pos, [average_bits * (1 - self.AVERAGE_THRESHOLD)] * len(x_pos), label='Threshold')
+			if average_bits:
+				plt.plot(x_pos, [average_bits] * len(x_pos), label='Total Average Bits')
+				plt.plot(x_pos, [average_bits * (1 - self.AVERAGE_THRESHOLD)] * len(x_pos), label='Average Threshold')
+				plt.ylim(0, average_bits + 1)
+			elif thresholds:
+				[plt.plot(x_pos, [threshold] * len(x_pos), label=f"{lang_name} Threshold", color=label_colors[lang_name])\
+					for lang_name, threshold in thresholds.items()]
 
-			plt.ylim(0, average_bits + 1)
 			plt.legend()
 		else:
 			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs)}
-			colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
-			label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs)}
 			patches = [mpatches.Patch(color=color, label=lang_name) for lang_name, color in label_colors.items()]
 
 			if y_axis_lang_bits:
@@ -235,7 +242,7 @@ class LocateLang:
 						plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
 			
 				plt.yticks(list(label_langs.values()), list(label_langs.keys()))
-			
+
 			plt.legend(handles=patches)
 		plt.show()
 
@@ -250,7 +257,8 @@ class LocateLang:
 			location_langs, y_axis_lang_bits = self.locate_chunks_lang()
 			self.plot_results(y_axis_lang_bits=y_axis_lang_bits)
 		else:
-			location_langs = self.locate_windows_lang()
+			location_langs, x_pos, lang_y, thresholds = self.locate_windows_lang()
+			self.plot_results(x_pos=x_pos, lang_y=lang_y, thresholds=thresholds)
 
 		if compare_langs:
 			avg_location_langs, x_pos, lang_y, average_bits = self.compare_lang_averages()
