@@ -11,7 +11,7 @@ import matplotlib.patches as mpatches
 
 
 class LocateLang:
-	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.1) -> None:
+	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.01) -> None:
 		self.dir_ref_files = dir_ref_files if dir_ref_files[-1] == '/' else f"{dir_ref_files}/"
 		self.target_filename = target_filename
 		self.k = k
@@ -67,14 +67,16 @@ class LocateLang:
 		return langs_bits, total_bits
 
 
-	def get_lang_below_threshold(self, text, thresholds, lang_y):
-		langs = []
-		for lang in self.langs:
-			average_bits = lang.bits_compress_target(text, calc_average=True)
-			lang_y[lang.lang_name].append(average_bits)
-			if average_bits <= thresholds[lang.lang_name]:
-				langs.append(lang.lang_name)
-		return langs
+	def avg_below_threshold(self, window_bits, thresholds, lang_y, lang_name):
+		total_bits = 0
+		for bits in window_bits:
+			total_bits += bits
+
+		average_bits = total_bits / self.WINDOW_SIZE
+
+		lang_y[lang_name].append(average_bits)
+
+		return average_bits <= thresholds[lang_name]
 
 
 	def locate_windows_lang(self):
@@ -86,19 +88,22 @@ class LocateLang:
 			logging.error(f"Could not open file {self.target_filename}")
 			sys.exit(0)
 
-		window_langs, target_text, lang_y =\
-			defaultdict(lambda: []), f.read(), defaultdict(lambda: [])
+		window_langs, target_text, lang_y, x_pos, calc_x_pos =\
+			defaultdict(lambda: []), f.read(), defaultdict(lambda: []), [], True
 
 		thresholds = {lang.lang_name: lang.fcm.entropy for lang in self.langs}
+		for lang in self.langs:
+			pos_bits = lang.bits_compress_target(target_text, calc_average=True)
+			window = pos_bits[:self.WINDOW_SIZE]
+			for ind, next_bit in enumerate(pos_bits[self.WINDOW_SIZE:]):
+				pos = (ind, ind + self.WINDOW_SIZE)
+				if self.avg_below_threshold(window, thresholds, lang_y, lang.lang_name):
+					window_langs[pos].append(lang.lang_name)
 
-		window = target_text[:self.WINDOW_SIZE]
-
-		for ind, next_char in enumerate(target_text[self.WINDOW_SIZE:]):
-			window_langs[(ind, ind + self.WINDOW_SIZE)] = self.get_lang_below_threshold(window, thresholds, lang_y)
-
-			window = window[1:] + next_char
-
-		x_pos = [end_pos for _, end_pos in window_langs.keys()]
+				if calc_x_pos:
+					x_pos.append(pos[1])
+				window = window[1:] + [next_bit]
+			calc_x_pos = False
 
 		return window_langs, x_pos, lang_y, thresholds
 
@@ -156,7 +161,7 @@ class LocateLang:
 
 			if target_text == '':
 				return location_langs, y_axis_lang_bits
-			
+
 			start_pos = n_chunk * self.CHUNK_SIZE
 			pos = (start_pos, start_pos + self.CHUNK_SIZE)
 			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
