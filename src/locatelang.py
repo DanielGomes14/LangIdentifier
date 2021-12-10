@@ -27,7 +27,7 @@ class LocateLang:
 		self.CHUNKS_THRESHOLD = 0.1
 		self.AVERAGE_THRESHOLD = 0.60
 		# TODO: adjust window size
-		self.WINDOW_SIZE = 5 * min(self.multi_k)
+		self.WINDOW_SIZE = 8 * min(self.multi_k)
 
 		self.strategy = self.get_best_strategy()
 
@@ -105,20 +105,36 @@ class LocateLang:
 				sum_entropies += self.langs[k][_id].fcm.entropy
 			thresholds[lang_name] = sum_entropies / len(self.multi_k)
 
-		for lang_name, _id in lang_id.items():
-			pos_bits_all_k = []
-			for k in self.multi_k:
-				pos_bits_all_k.append(self.langs[k][_id].bits_compress_target(target_text, calc_average=True))
+		# use this for multi k
+		for initial_pos in range(len(target_text)-self.WINDOW_SIZE):
+			end_pos = initial_pos + self.WINDOW_SIZE
+			window_text = target_text[initial_pos:end_pos]
 
-			for initial_pos in range(len(pos_bits_all_k[0])-self.WINDOW_SIZE):
-				end_pos = initial_pos + self.WINDOW_SIZE
-				pos = (initial_pos, end_pos)
+			for lang_name, _id in lang_id.items():
 				window_bits = 0
-				for pos_bits_k in pos_bits_all_k:
-					window_bits += sum(pos_bits_k[initial_pos: end_pos])
+				for k in self.multi_k:
+					window_bits += self.langs[k][_id].bits_compress_target(window_text)
+				average_window_bits = window_bits / (self.WINDOW_SIZE * len(self.multi_k))
+				if average_window_bits <= thresholds[lang_name]:
+					window_langs[(initial_pos, end_pos)].append(lang_name)
 
-				if window_bits / (self.WINDOW_SIZE * len(self.multi_k)) <= thresholds[lang_name]:
-					window_langs[pos].append(lang_name)
+		# use this for only one k
+		# since it is faster, even tho
+		# this will change window size because it is differently iterated
+
+		# for lang_name, _id in lang_id.items():
+		# 	pos_bits_all_k = []
+		# 	for k in self.multi_k:
+		# 		pos_bits_all_k.append(self.langs[k][_id].bits_compress_target(target_text, calc_average=True))
+
+		# 	for initial_pos in range(len(pos_bits_all_k[0])-self.WINDOW_SIZE):
+		# 		end_pos = initial_pos + self.WINDOW_SIZE
+		# 		window_bits = 0
+		# 		for pos_bits_k in pos_bits_all_k:
+		# 			window_bits += sum(pos_bits_k[initial_pos: end_pos])
+
+		# 		if window_bits / (self.WINDOW_SIZE * len(self.multi_k)) <= thresholds[lang_name]:
+		# 			window_langs[(initial_pos, end_pos)].append(lang_name)
 
 		return window_langs, x_pos, lang_y, thresholds
 
@@ -214,7 +230,7 @@ class LocateLang:
 		if (previous_start_pos, end_pos) not in final_location_langs:
 			final_location_langs[(previous_start_pos, end_pos)] = previous_langs
 		return final_location_langs
-	
+
 
 	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, y_axis_lang_bits=None, final_location_langs={}):
 		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
