@@ -203,10 +203,11 @@ class LocateLang:
 
 			if Counter(previous_langs) == Counter(langs):
 				continue
-			else:
-				if start_pos != 0:
-					final_location_langs[(previous_start_pos, start_pos - 1)] = previous_langs
-				previous_start_pos = start_pos
+
+			if start_pos != 0:
+				final_location_langs[(previous_start_pos, start_pos - 1)] = previous_langs
+
+			previous_start_pos = start_pos
 			previous_langs = langs
 
 		# last location
