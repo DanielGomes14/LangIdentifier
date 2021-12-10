@@ -3,6 +3,7 @@ from fcm import FCM
 from lang import Lang
 import os
 import sys
+from utils import open_file
 
 
 class FindLang:
@@ -27,11 +28,7 @@ class FindLang:
 
 
 	def get_t_alphabet(self):
-		try:
-			file_text = open(self.target_filename, "r", encoding='utf-8')
-		except FileNotFoundError:
-			print(f"Could not open file {self.target_filename}")
-			sys.exit(0)
+		file_text = open_file(self.target_filename, "r")
 
 		t_alphabet = set()
 

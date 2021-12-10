@@ -2,6 +2,8 @@ from collections import defaultdict
 from math import log2
 import sys
 FILENAME = "./../example/example.txt"
+from utils import open_file
+
 
 class FCM:
     def __init__(self, k=3, alpha=0.1, filename=FILENAME) -> None:
@@ -43,11 +45,7 @@ class FCM:
 
 
     def read_file(self):
-        try:
-            file_text = open(self.filename, "r", encoding='utf-8')
-        except FileNotFoundError:
-            print(f"Could not Open file {self.filename}")
-            sys.exit(0)
+        file_text = open_file(self.filename, "r")
 
         # get alphet and store indexes
         ind_counter = 0
@@ -59,6 +57,7 @@ class FCM:
                     self.alphabet[char] = ind_counter
                     ind_counter += 1
 
+        file_text.close()
         # store size of alphabet
         self.alphabet_size = ind_counter
 
@@ -75,7 +74,8 @@ class FCM:
     def set_occurrences(self):
         context = ""
 
-        file_text = open(self.filename, "r", encoding='utf-8')
+        file_text = open_file(self.filename, "r")
+
         for line in file_text:
             for char in line:
                 # We should only use sequences of size k

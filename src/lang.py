@@ -2,10 +2,11 @@ import logging
 from fcm import FCM
 from math import log2
 import sys
+from utils import open_file
 
 
 class Lang:
-    def __init__(self, reference_filename, target_filename, k=3, alpha=0.1) -> None:
+    def __init__(self, reference_filename, target_filename, k=3, alpha=0.01) -> None:
         self.ref_filename = reference_filename
         self.target_filename = target_filename
         self.k = k
@@ -19,7 +20,7 @@ class Lang:
     
     
     def train_fcm(self):
-        logging.info(f"Starting to train FCM with {self.lang_name}")
+        logging.info(f"Starting to train FCM with {self.lang_name} with order {self.k}")
         self.fcm.run(get_alphabet=False)
 
     
@@ -27,11 +28,7 @@ class Lang:
         max_index = max(self.fcm.alphabet.values())
 
         if not t_alphabet:
-            try:
-                file_text = open(self.target_filename, "r", encoding='utf-8')
-            except FileNotFoundError:
-                print(f"Could not open file {self.target_filename}")
-                sys.exit(0)
+            file_text = open_file(self.target_filename, "r")
 
             for line in file_text:
                 for char in line:
@@ -64,13 +61,9 @@ class Lang:
         pos_bits = []
 
         if not target_text:
-            try:
-                f = open(self.target_filename, 'r', encoding='utf-8')
-            except FileNotFoundError:
-                logging.error(f"Could not open file {self.target_filename}")
-                sys.exit()
+            f = open_file(self.target_filename, 'r')
             target_text = f.read()
-        
+            f.close()
 
         context = target_text[:self.k]
 

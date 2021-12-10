@@ -1,31 +1,33 @@
 import logging
 from math import log
-from fcm import FCM
 from lang import Lang
 import os
-import sys
 from collections import defaultdict, Counter
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import matplotlib.patches as mpatches
+from utils import open_file, open_dir
 
 
 class LocateLang:
-	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.01) -> None:
-		self.dir_ref_files = dir_ref_files if dir_ref_files[-1] == '/' else f"{dir_ref_files}/"
+	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.01, multi_k=[]) -> None:
+		self.dir_ref_files = dir_ref_files if dir_ref_files[-1] == '/' or dir_ref_files[-1] == "\\" else f"{dir_ref_files}/"
 		self.target_filename = target_filename
 		self.k = k
+		if not multi_k:
+			multi_k.append(k)
+		self.multi_k = multi_k
 		self.alpha = alpha
 
-		self.langs = self.get_langs()
-
 		self.location_langs = {}
+
+		self.langs = self.get_langs()
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.1
 		self.AVERAGE_THRESHOLD = 0.60
 		# TODO: adjust window size
-		self.WINDOW_SIZE = 5 * self.k
+		self.WINDOW_SIZE = 5 * min(self.multi_k)
 
 		self.strategy = self.get_best_strategy()
 
@@ -38,19 +40,20 @@ class LocateLang:
 
 
 	def get_langs(self):
-		try:
-			return [Lang(f"{self.dir_ref_files}{ref_file}", self.target_filename, self.k, self.alpha)\
-				for ref_file in os.listdir(self.dir_ref_files)]
-		except:
-			logging.info(f"Directory {self.dir_ref_files} not found")
-			sys.exit()
+		ref_files = open_dir(self.dir_ref_files)
+		langs = defaultdict(lambda: [])
 
+		[langs[k].append(Lang(f"{self.dir_ref_files}{ref_file}", self.target_filename, k, self.alpha))
+			for k in self.multi_k
+			for ref_file in ref_files]
+
+		return langs
 
 	def guess_language(self, text, last_lang, ignore_lang=False, y_axis=None):
 		if not last_lang or ignore_lang:
-			lang_bits = [lang.bits_compress_target(text) if lang != last_lang else lang.n_bits for lang in self.langs]
+			lang_bits = [lang.bits_compress_target(text) if lang != last_lang else lang.n_bits for lang in self.langs[self.k]]
 			min_bits = min(lang_bits)
-			return self.langs[lang_bits.index(min_bits)], min_bits, lang_bits
+			return self.langs[self.k][lang_bits.index(min_bits)], min_bits, lang_bits
 
 		lang_bits = [last_lang.bits_compress_target(text)]
 		return last_lang, lang_bits[0], lang_bits
@@ -59,7 +62,7 @@ class LocateLang:
 	def get_langs_bits(self, text):
 		langs_bits = {}
 		total_bits = 0
-		for lang in self.langs:
+		for lang in self.langs[self.k]:
 			n_bits = lang.bits_compress_target(text)
 			langs_bits[lang.lang_name] = n_bits
 			total_bits += n_bits
@@ -80,44 +83,87 @@ class LocateLang:
 
 
 	def locate_windows_lang(self):
-		#TODO: Change this to a function
 		logging.info("Starting Locating Langs for each window")
-		try:
-			f = open(self.target_filename, 'r', encoding='utf-8')
-		except FileNotFoundError:
-			logging.error(f"Could not open file {self.target_filename}")
-			sys.exit(0)
+		f = open_file(self.target_filename, 'r')
 
 		window_langs, target_text, lang_y, x_pos, calc_x_pos =\
 			defaultdict(lambda: []), f.read(), defaultdict(lambda: []), [], True
 
-		thresholds = {lang.lang_name: lang.fcm.entropy for lang in self.langs}
-		for lang in self.langs:
-			pos_bits = lang.bits_compress_target(target_text, calc_average=True)
-			window = pos_bits[:self.WINDOW_SIZE]
-			for ind, next_bit in enumerate(pos_bits[self.WINDOW_SIZE:]):
-				pos = (ind, ind + self.WINDOW_SIZE)
-				if self.avg_below_threshold(window, thresholds, lang_y, lang.lang_name):
-					window_langs[pos].append(lang.lang_name)
+		f.close()
+		
+		lang_id = {}
+		thresholds = {}
 
-				if calc_x_pos:
-					x_pos.append(pos[1])
-				window = window[1:] + [next_bit]
-			calc_x_pos = False
+		for k in self.multi_k:
+			for i, lang in enumerate(self.langs[k]):
+				lang_id[lang.lang_name] = i
+			break
+
+		for lang_name, _id in lang_id.items():
+			sum_entropies = 0
+			for k in self.multi_k:
+				sum_entropies += self.langs[k][_id].fcm.entropy
+			thresholds[lang_name] = sum_entropies / len(self.multi_k)
+
+		for lang_name, _id in lang_id.items():
+			pos_bits_all_k = []
+			for k in self.multi_k:
+				pos_bits_all_k.append(self.langs[k][_id].bits_compress_target(target_text, calc_average=True))
+
+			for initial_pos in range(len(pos_bits_all_k[0])-self.WINDOW_SIZE):
+				end_pos = initial_pos + self.WINDOW_SIZE
+				pos = (initial_pos, end_pos)
+				window_bits = 0
+				for pos_bits_k in pos_bits_all_k:
+					window_bits += sum(pos_bits_k[initial_pos: end_pos])
+
+				if window_bits / (self.WINDOW_SIZE * len(self.multi_k)) <= thresholds[lang_name]:
+					window_langs[pos].append(lang_name)
 
 		return window_langs, x_pos, lang_y, thresholds
 
 
+	def locate_chunks_lang(self):
+		f = open_file(self.target_filename, 'r')
+
+		location_langs, n_chunk, lang, previous_n_bits, y_axis_lang_bits =\
+			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: [])
+
+		f.close()
+
+		while True:
+			target_text = f.read(self.CHUNK_SIZE)
+
+			if target_text == '':
+				return location_langs, y_axis_lang_bits
+
+			start_pos = n_chunk * self.CHUNK_SIZE
+			pos = (start_pos, start_pos + self.CHUNK_SIZE)
+			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
+
+			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.CHUNKS_THRESHOLD:
+				lang, n_bits, lang_bits = self.guess_language(target_text, lang, ignore_lang=True)
+				[y_axis_lang_bits[self.langs[self.k][i].lang_name].append([pos, bits]) for i, bits in enumerate(lang_bits)]
+			else:
+				y_axis_lang_bits[lang.lang_name].append([pos, n_bits])
+
+			previous_n_bits = n_bits
+			start_pos = n_chunk * self.CHUNK_SIZE
+			location_langs[pos].append(lang.lang_name)
+			logging.info(f"Guessed language: {lang.lang_name}")
+
+			n_chunk += 1
+
+
 	def compare_lang_averages(self):
 		logging.info("Starting Locating Langs for each window")
-		try:
-			f = open(self.target_filename, 'r', encoding='utf-8')
-		except FileNotFoundError:
-			logging.error(f"Could not open file {self.target_filename}")
-			sys.exit(0)
+		
+		f = open_file(self.target_filename, 'r')
 		
 		location_langs, window_langs, total_bits, target_text =\
 			defaultdict(lambda: []), {}, 0, f.read()
+
+		f.close()
 
 		window = target_text[:self.WINDOW_SIZE]
 
@@ -128,7 +174,7 @@ class LocateLang:
 
 			window = window[1:] + next_char
 
-		average_bits = total_bits / ind / len(self.langs)
+		average_bits = total_bits / ind / len(self.langs[self.k])
 		
 		logging.info(f"Average number of bits for each window: {average_bits}")
 
@@ -146,79 +192,32 @@ class LocateLang:
 		return location_langs, x_pos, lang_y, average_bits
 
 
-	def locate_chunks_lang(self):
-		try:
-			f = open(self.target_filename, 'r', encoding='utf-8')
-		except FileNotFoundError:
-			logging.error(f"Could not open file {self.target_filename}")
-			sys.exit(0)
-
-		location_langs, n_chunk, lang, previous_n_bits, y_axis_lang_bits =\
-			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: [])
-
-		while True:
-			target_text = f.read(self.CHUNK_SIZE)
-
-			if target_text == '':
-				return location_langs, y_axis_lang_bits
-
-			start_pos = n_chunk * self.CHUNK_SIZE
-			pos = (start_pos, start_pos + self.CHUNK_SIZE)
-			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
-
-			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.CHUNKS_THRESHOLD:
-				lang, n_bits, lang_bits = self.guess_language(target_text, lang, ignore_lang=True)
-				[y_axis_lang_bits[self.langs[i].lang_name].append([pos, bits]) for i, bits in enumerate(lang_bits)]
-			else:
-				y_axis_lang_bits[lang.lang_name].append([pos, n_bits])
-
-			previous_n_bits = n_bits
-			start_pos = n_chunk * self.CHUNK_SIZE
-			location_langs[pos].append(lang.lang_name)
-			logging.info(f"Guessed language: {lang.lang_name}")
-
-			n_chunk += 1
-
-
-	def get_t_alphabet(self):
-		try:
-			file_text = open(self.target_filename, "r", encoding='utf-8')
-		except FileNotFoundError:
-			print(f"Could not open file {self.target_filename}")
-			sys.exit(0)
-
-		t_alphabet = set()
-
-		for line in file_text:
-			for char in line:
-				t_alphabet.add(char)
-		
-		return t_alphabet
-
-
 	def merge_locations(self, location_langs):
-		previous_langs, previous_start_pos, previous_end_pos, final_location_langs =\
-			[], 0, 0, {}
+		previous_langs, previous_start_pos, final_location_langs =\
+			[], 0, {}
 
-		for loc, langs in location_langs.items():
+		sorted_locations_langs = sorted(location_langs.items(), key=lambda k: k[0])
+
+		for loc, langs in sorted_locations_langs:
 			start_pos, end_pos = loc
+
 			if Counter(previous_langs) == Counter(langs):
-				previous_end_pos = end_pos
+				continue
 			else:
-				if previous_end_pos:
-					final_location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
-				previous_start_pos, previous_end_pos = start_pos, end_pos
+				if start_pos != 0:
+					final_location_langs[(previous_start_pos, start_pos - 1)] = previous_langs
+				previous_start_pos = start_pos
 			previous_langs = langs
 
 		# last location
-		if (previous_start_pos, previous_end_pos) not in final_location_langs:
-			final_location_langs[(previous_start_pos, previous_end_pos)] = previous_langs
+		if (previous_start_pos, end_pos) not in final_location_langs:
+			final_location_langs[(previous_start_pos, end_pos)] = previous_langs
 		return final_location_langs
 	
 
 	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, y_axis_lang_bits=None, final_location_langs={}):
 		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
-		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs)}
+		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs[self.k])}
 		
 		if x_pos:
 			for lang, y in lang_y.items():
@@ -234,7 +233,7 @@ class LocateLang:
 
 			plt.legend()
 		else:
-			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs)}
+			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs[self.k])}
 			patches = [mpatches.Patch(color=color, label=lang_name) for lang_name, color in label_colors.items()]
 
 			if y_axis_lang_bits:
@@ -252,11 +251,25 @@ class LocateLang:
 		plt.show()
 
 
+	def get_t_alphabet(self):
+		file_text = open_file(self.target_filename, "r")
+
+		t_alphabet = set()
+
+		for line in file_text:
+			for char in line:
+				t_alphabet.add(char)
+
+		file_text.close()
+
+		return t_alphabet
+
+
 	def run(self, compare_langs=False):
 		t_alphabet = self.get_t_alphabet()
 
 		logging.info(f"Starting to train FCM with files inside {self.dir_ref_files}")
-		[lang.run(t_alphabet) for lang in self.langs]
+		[lang.run(t_alphabet) for k in self.multi_k for lang in self.langs[k]]
 
 		if self.strategy == "chunks":
 			location_langs, y_axis_lang_bits = self.locate_chunks_lang()
@@ -270,4 +283,5 @@ class LocateLang:
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
 			self.plot_results(final_location_langs=self.merge_locations(avg_location_langs))
 
-		self.plot_results(final_location_langs=self.merge_locations(location_langs))
+		self.location_langs = self.merge_locations(location_langs)
+		self.plot_results(final_location_langs=self.location_langs)

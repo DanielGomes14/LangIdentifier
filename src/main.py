@@ -11,14 +11,14 @@ class Main:
         self.lang = None
         self.findlang = None
         self.locatelang = None
-        ref_filename, dir_ref_files, target_filename, locate_lang, compare_langs, k, alpha = self.check_arguments()
+        ref_filename, dir_ref_files, target_filename, locate_lang, compare_langs, k, alpha, multi_k = self.check_arguments()
 
         if not dir_ref_files:
             self.lang = Lang(ref_filename, target_filename, k, alpha)
             self.lang.run()
             self.lang.bits_compress_target()
         elif locate_lang:
-            self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha)
+            self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha, multi_k)
             self.locatelang.run(compare_langs)
         else:
             self.findlang = FindLang(dir_ref_files, target_filename, k, alpha)
@@ -56,9 +56,11 @@ class Main:
         arg_parser.add_argument('-d', nargs=1, default=[None])
         arg_parser.add_argument('-t', nargs=1, default=["./../datasets/languages_test/English.utf8"])
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
-        arg_parser.add_argument('-a', nargs=1, type=float, default=[0.01])
+        arg_parser.add_argument('-a', nargs=1, type=float, default=[0.001])
         arg_parser.add_argument('-l', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
+        arg_parser.add_argument('-m', nargs='*', type=int, default=[])
+
 
         args = None
 
@@ -74,7 +76,7 @@ class Main:
         k = args.k[0]
         alpha = args.a[0]
 
-        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha
+        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m
 
 
 if __name__ =="__main__":
