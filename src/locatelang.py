@@ -27,7 +27,7 @@ class LocateLang:
 		self.CHUNKS_THRESHOLD = 0.1
 		self.AVERAGE_THRESHOLD = 0.60
 		# TODO: adjust window size
-		self.WINDOW_SIZE = 8 * min(self.multi_k)
+		self.WINDOW_SIZE = 8 * max(self.multi_k)
 
 		self.strategy = self.get_best_strategy()
 
@@ -70,30 +70,15 @@ class LocateLang:
 		return langs_bits, total_bits
 
 
-	def avg_below_threshold(self, window_bits, thresholds, lang_y, lang_name):
-		total_bits = 0
-		for bits in window_bits:
-			total_bits += bits
-
-		average_bits = total_bits / self.WINDOW_SIZE
-
-		lang_y[lang_name].append(average_bits)
-
-		return average_bits <= thresholds[lang_name]
-
-
 	def locate_windows_lang(self):
 		logging.info("Starting Locating Langs for each window")
 		f = open_file(self.target_filename, 'r')
 
-		window_langs, target_text, lang_y, x_pos, calc_x_pos =\
-			defaultdict(lambda: []), f.read(), defaultdict(lambda: []), [], True
+		window_langs, target_text, lang_y, x_pos, lang_id, thresholds =\
+			defaultdict(lambda: []), f.read(), defaultdict(lambda: []), [], {}, {}
 
 		f.close()
 		
-		lang_id = {}
-		thresholds = {}
-
 		for k in self.multi_k:
 			for i, lang in enumerate(self.langs[k]):
 				lang_id[lang.lang_name] = i
@@ -105,45 +90,28 @@ class LocateLang:
 				sum_entropies += self.langs[k][_id].fcm.entropy
 			thresholds[lang_name] = sum_entropies / len(self.multi_k)
 
-		# use this for multi k
 		for initial_pos in range(len(target_text)-self.WINDOW_SIZE):
 			end_pos = initial_pos + self.WINDOW_SIZE
 			window_text = target_text[initial_pos:end_pos]
+			x_pos.append(end_pos)
 
 			for lang_name, _id in lang_id.items():
 				window_bits = 0
 				for k in self.multi_k:
 					window_bits += self.langs[k][_id].bits_compress_target(window_text)
 				average_window_bits = window_bits / (self.WINDOW_SIZE * len(self.multi_k))
+				lang_y[lang_name].append(average_window_bits)
 				if average_window_bits <= thresholds[lang_name]:
 					window_langs[(initial_pos, end_pos)].append(lang_name)
 
-		# use this for only one k
-		# since it is faster, even tho
-		# this will change window size because it is differently iterated
-
-		# for lang_name, _id in lang_id.items():
-		# 	pos_bits_all_k = []
-		# 	for k in self.multi_k:
-		# 		pos_bits_all_k.append(self.langs[k][_id].bits_compress_target(target_text, calc_average=True))
-
-		# 	for initial_pos in range(len(pos_bits_all_k[0])-self.WINDOW_SIZE):
-		# 		end_pos = initial_pos + self.WINDOW_SIZE
-		# 		window_bits = 0
-		# 		for pos_bits_k in pos_bits_all_k:
-		# 			window_bits += sum(pos_bits_k[initial_pos: end_pos])
-
-		# 		if window_bits / (self.WINDOW_SIZE * len(self.multi_k)) <= thresholds[lang_name]:
-		# 			window_langs[(initial_pos, end_pos)].append(lang_name)
-
-		return window_langs, x_pos, lang_y, thresholds
+		return window_langs, lang_y, x_pos, thresholds
 
 
 	def locate_chunks_lang(self):
 		f = open_file(self.target_filename, 'r')
 
-		location_langs, n_chunk, lang, previous_n_bits, y_axis_lang_bits =\
-			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: [])
+		location_langs, n_chunk, lang, previous_n_bits, lang_y, x_pos =\
+			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: []), []
 
 		f.close()
 
@@ -151,17 +119,19 @@ class LocateLang:
 			target_text = f.read(self.CHUNK_SIZE)
 
 			if target_text == '':
-				return location_langs, y_axis_lang_bits
+				return location_langs, lang_y, x_pos
 
 			start_pos = n_chunk * self.CHUNK_SIZE
-			pos = (start_pos, start_pos + self.CHUNK_SIZE)
+			end_pos = start_pos + self.CHUNK_SIZE
+			pos = (start_pos, end_pos)
+			x_pos.append(end_pos)
 			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
 
 			if previous_n_bits and n_bits / previous_n_bits - 1 >= self.CHUNKS_THRESHOLD:
 				lang, n_bits, lang_bits = self.guess_language(target_text, lang, ignore_lang=True)
-				[y_axis_lang_bits[self.langs[self.k][i].lang_name].append([pos, bits]) for i, bits in enumerate(lang_bits)]
+				[lang_y[self.langs[self.k][i].lang_name].append(bits) for i, bits in enumerate(lang_bits)]
 			else:
-				y_axis_lang_bits[lang.lang_name].append([pos, n_bits])
+				lang_y[lang.lang_name].append(n_bits)
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
@@ -205,7 +175,7 @@ class LocateLang:
 				if n_bits <= threshold:
 					location_langs[w].append(lang)
 
-		return location_langs, x_pos, lang_y, average_bits
+		return location_langs, lang_y, x_pos, average_bits
 
 
 	def merge_locations(self, location_langs):
@@ -232,11 +202,22 @@ class LocateLang:
 		return final_location_langs
 
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, y_axis_lang_bits=None, final_location_langs={}):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, final_location_langs={}):
 		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
 		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs[self.k])}
+
+		if final_location_langs:
+			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs[self.k])}
+			patches = [mpatches.Patch(color=color, label=lang_name) for lang_name, color in label_colors.items()]
+
+			for loc, langs in final_location_langs.items():
+				for lang in langs:
+					plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
 		
-		if x_pos:
+			plt.yticks(list(label_langs.values()), list(label_langs.keys()))
+
+			plt.legend(handles=patches)
+		else:
 			for lang, y in lang_y.items():
 				plt.plot(x_pos, y, 'o', label=f"{lang} Average Bits", color=label_colors[lang])
 
@@ -244,27 +225,12 @@ class LocateLang:
 				plt.plot(x_pos, [average_bits] * len(x_pos), label='Total Average Bits')
 				plt.plot(x_pos, [average_bits * (1 - self.AVERAGE_THRESHOLD)] * len(x_pos), label='Average Threshold')
 				plt.ylim(0, average_bits + 1)
-			elif thresholds:
-				[plt.plot(x_pos, [threshold] * len(x_pos), label=f"{lang_name} Threshold", color=label_colors[lang_name])\
-					for lang_name, threshold in thresholds.items()]
+			
+			if thresholds:
+				plt.plot(x_pos, [thresholds[lang]] * len(x_pos), label=f"{lang} Threshold", color=label_colors[lang])
+				plt.ylim(0, max(thresholds.values()) * 2)
 
 			plt.legend()
-		else:
-			label_langs = {lang.lang_name: i for i, lang in enumerate(self.langs[self.k])}
-			patches = [mpatches.Patch(color=color, label=lang_name) for lang_name, color in label_colors.items()]
-
-			if y_axis_lang_bits:
-				for lang, points_bits in y_axis_lang_bits.items():
-					for point_bits in points_bits:
-						plt.plot(point_bits[0], [point_bits[1]] * 2, color=label_colors[lang])
-			else:
-				for loc, langs in final_location_langs.items():
-					for lang in langs:
-						plt.plot(loc, [label_langs[lang]] * 2, color=label_colors[lang])
-			
-				plt.yticks(list(label_langs.values()), list(label_langs.keys()))
-
-			plt.legend(handles=patches)
 		plt.show()
 
 
@@ -289,14 +255,14 @@ class LocateLang:
 		[lang.run(t_alphabet) for k in self.multi_k for lang in self.langs[k]]
 
 		if self.strategy == "chunks":
-			location_langs, y_axis_lang_bits = self.locate_chunks_lang()
-			self.plot_results(y_axis_lang_bits=y_axis_lang_bits)
+			location_langs, lang_y, x_pos = self.locate_chunks_lang()
+			self.plot_results(x_pos=x_pos, lang_y=lang_y)
 		else:
-			location_langs, x_pos, lang_y, thresholds = self.locate_windows_lang()
+			location_langs, lang_y, x_pos, thresholds = self.locate_windows_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, thresholds=thresholds)
 
 		if compare_langs:
-			avg_location_langs, x_pos, lang_y, average_bits = self.compare_lang_averages()
+			avg_location_langs, lang_y, x_pos, average_bits = self.compare_lang_averages()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
 			self.plot_results(final_location_langs=self.merge_locations(avg_location_langs))
 
