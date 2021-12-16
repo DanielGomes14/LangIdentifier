@@ -1,6 +1,5 @@
 from collections import defaultdict
 from math import log2
-import sys
 FILENAME = "./../example/example.txt"
 from utils import open_file
 

@@ -37,14 +37,12 @@ class Lang:
                         max_index += 1
                         self.fcm.alphabet[char] = max_index
                         self.fcm.alphabet_size += 1
-                        logging.info(f'Adding char {char} to reference alphabet')
         else:
             for char in t_alphabet:
                 if char not in self.fcm.alphabet:
                     max_index += 1
                     self.fcm.alphabet[char] = max_index
                     self.fcm.alphabet_size += 1
-                    logging.info(f'Adding char {char} to reference alphabet')
 
 
     def run(self, t_alphabet=None):
@@ -56,7 +54,6 @@ class Lang:
 
     
     def bits_compress_target(self, target_text=None, calc_average=False):
-        # logging.info(f"Calculating number of bits to compress with a trained FCM with {self.lang_name}.")
         self.n_bits = 0
         pos_bits = []
 
@@ -82,6 +79,5 @@ class Lang:
 
         if calc_average:
             return pos_bits
-        # logging.info(f"The number of bits necessary are {self.n_bits}")
 
         return self.n_bits

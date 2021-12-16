@@ -11,7 +11,9 @@ class Main:
         self.lang = None
         self.findlang = None
         self.locatelang = None
-        ref_filename, dir_ref_files, target_filename, locate_lang, compare_langs, k, alpha, multi_k = self.check_arguments()
+        ref_filename, dir_ref_files, target_filename,\
+            locate_lang, compare_langs, k, alpha, multi_k, test_dir =\
+                self.check_arguments()
 
         if not dir_ref_files:
             self.lang = Lang(ref_filename, target_filename, k, alpha)
@@ -21,7 +23,8 @@ class Main:
             self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha, multi_k)
             self.locatelang.run(compare_langs)
         else:
-            self.findlang = FindLang(dir_ref_files, target_filename, k, alpha)
+            self.test_dir = test_dir
+            self.findlang = FindLang(dir_ref_files, target_filename, k, alpha, test_dir)
             self.findlang.run()
 
         self.get_results()
@@ -33,8 +36,14 @@ class Main:
             print(f"Estimated average number of bits {self.lang.t_number_chars*self.lang.fcm.entropy}")
             print(f"Number of bits necessary to compress target file with a trained model {self.lang.n_bits}")
         if self.findlang:
-            [print(f"Number of bits for {lang.lang_name}: {lang.n_bits}") for lang in self.findlang.langs]
-            print(f"Guessed Language: {self.findlang.language}")
+            right_predictions = 0
+            for i, item in enumerate(self.findlang.guessed_langs.items()):
+                lang, guessed_lang = item
+                if lang == guessed_lang:
+                    right_predictions += 1
+                print(f"\nFor {lang} file:")
+                print(f"\t- Guessed language: {guessed_lang}")
+                print(f"\t- Accuracy: {right_predictions/(i+1)}")
         if self.locatelang:
             [print(f"Position {pos}, language: {lang}") for pos, lang in self.locatelang.location_langs.items()]
 
@@ -60,7 +69,7 @@ class Main:
         arg_parser.add_argument('-l', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
         arg_parser.add_argument('-m', nargs='*', type=int, default=[])
-
+        arg_parser.add_argument('-test', nargs=1, default=[None])
 
         args = None
 
@@ -75,8 +84,9 @@ class Main:
         target_filename = args.t[0]
         k = args.k[0]
         alpha = args.a[0]
+        test = args.test[0]
 
-        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m
+        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m, test
 
 
 if __name__ =="__main__":
