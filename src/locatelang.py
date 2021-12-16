@@ -227,7 +227,8 @@ class LocateLang:
 				plt.ylim(0, average_bits + 1)
 			
 			if thresholds:
-				plt.plot(x_pos, [thresholds[lang]] * len(x_pos), label=f"{lang} Threshold", color=label_colors[lang])
+				[plt.plot(x_pos, [threshold] * len(x_pos), label=f"{lang} Threshold", color=label_colors[lang])\
+					for lang, threshold in thresholds.items()]
 				plt.ylim(0, max(thresholds.values()) * 2)
 
 			plt.legend()
