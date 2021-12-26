@@ -119,8 +119,6 @@ class LocateLang:
 		location_langs, n_chunk, lang, previous_n_bits, lang_y, x_pos =\
 			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: []), []
 
-		f.close()
-
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
 
@@ -138,6 +136,7 @@ class LocateLang:
 				[lang_y[self.langs[self.k][i].lang_name].append(bits) for i, bits in enumerate(lang_bits)]
 			else:
 				lang_y[lang.lang_name].append(n_bits)
+				[lang_y[other_lang.lang_name].append(-1) for other_lang in self.langs[self.k] if other_lang.lang_name != lang.lang_name]
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
@@ -208,7 +207,7 @@ class LocateLang:
 		return final_location_langs
 
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, final_location_langs={}):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, final_location_langs={}, chunks=False):
 		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
 		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs[self.k])}
 
@@ -236,6 +235,9 @@ class LocateLang:
 				[plt.plot(x_pos, [threshold] * len(x_pos), label=f"{lang} Threshold", color=label_colors[lang])\
 					for lang, threshold in thresholds.items()]
 				plt.ylim(0, max(thresholds.values()) * 2)
+			
+			if chunks:
+				plt.ylim(bottom=0)
 
 			plt.legend()
 		plt.show()
@@ -263,7 +265,7 @@ class LocateLang:
 
 		if self.strategy == "chunks":
 			location_langs, lang_y, x_pos = self.locate_chunks_lang()
-			self.plot_results(x_pos=x_pos, lang_y=lang_y)
+			self.plot_results(x_pos=x_pos, lang_y=lang_y, chunks=True)
 		else:
 			location_langs, lang_y, x_pos, thresholds = self.locate_windows_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, thresholds=thresholds)
