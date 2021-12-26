@@ -90,20 +90,26 @@ class LocateLang:
 				sum_entropies += self.langs[k][_id].fcm.entropy
 			thresholds[lang_name] = sum_entropies / len(self.multi_k)
 
+		previous_pos = (0, 0)
 		for initial_pos in range(len(target_text)-self.WINDOW_SIZE):
 			end_pos = initial_pos + self.WINDOW_SIZE
 			window_text = target_text[initial_pos:end_pos]
 			x_pos.append(end_pos)
 
 			for lang_name, _id in lang_id.items():
+				previous_window_lang = lang_name in window_langs[previous_pos]
 				window_bits = 0
 				for k in self.multi_k:
 					window_bits += self.langs[k][_id].bits_compress_target(window_text)
 				average_window_bits = window_bits / (self.WINDOW_SIZE * len(self.multi_k))
 				lang_y[lang_name].append(average_window_bits)
-				if average_window_bits <= thresholds[lang_name]:
+				# noise reduction
+				# if the previous window was of this language then increase 5 % of the threshold 
+				if not previous_window_lang and average_window_bits <= thresholds[lang_name] or\
+					previous_window_lang and average_window_bits <= thresholds[lang_name] * 1.05:
 					window_langs[(initial_pos, end_pos)].append(lang_name)
 
+			previous_pos = (initial_pos, end_pos)
 		return window_langs, lang_y, x_pos, thresholds
 
 
