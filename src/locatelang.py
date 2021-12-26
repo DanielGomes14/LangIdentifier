@@ -136,7 +136,7 @@ class LocateLang:
 				[lang_y[self.langs[self.k][i].lang_name].append(bits) for i, bits in enumerate(lang_bits)]
 			else:
 				lang_y[lang.lang_name].append(n_bits)
-				[lang_y[other_lang.lang_name].append(-1) for other_lang in self.langs[self.k] if other_lang.lang_name != lang.lang_name]
+				[lang_y[other_lang.lang_name].append(-50000) for other_lang in self.langs[self.k] if other_lang.lang_name != lang.lang_name]
 
 			previous_n_bits = n_bits
 			start_pos = n_chunk * self.CHUNK_SIZE
@@ -207,7 +207,7 @@ class LocateLang:
 		return final_location_langs
 
 
-	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, final_location_langs={}, chunks=False):
+	def plot_results(self, x_pos=None, lang_y=None, average_bits=None, thresholds=None, final_location_langs={}):
 		colors = list(mcolors.BASE_COLORS) + list(mcolors.CSS4_COLORS.values())
 		label_colors = {lang.lang_name: colors[i] for i, lang in enumerate(self.langs[self.k])}
 
@@ -225,6 +225,8 @@ class LocateLang:
 		else:
 			for lang, y in lang_y.items():
 				plt.plot(x_pos, y, 'o', label=f"{lang} Average Bits", color=label_colors[lang])
+			
+			plt.ylim(bottom=0)
 
 			if average_bits:
 				plt.plot(x_pos, [average_bits] * len(x_pos), label='Total Average Bits')
@@ -236,9 +238,6 @@ class LocateLang:
 					for lang, threshold in thresholds.items()]
 				plt.ylim(0, max(thresholds.values()) * 2)
 			
-			if chunks:
-				plt.ylim(bottom=0)
-
 			plt.legend()
 		plt.show()
 
@@ -265,7 +264,7 @@ class LocateLang:
 
 		if self.strategy == "chunks":
 			location_langs, lang_y, x_pos = self.locate_chunks_lang()
-			self.plot_results(x_pos=x_pos, lang_y=lang_y, chunks=True)
+			self.plot_results(x_pos=x_pos, lang_y=lang_y)
 		else:
 			location_langs, lang_y, x_pos, thresholds = self.locate_windows_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, thresholds=thresholds)
