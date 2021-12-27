@@ -69,7 +69,7 @@ class Main:
         arg_parser.add_argument('-l', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
         arg_parser.add_argument('-m', nargs='*', type=int, default=[])
-        arg_parser.add_argument('-test', nargs=1, default=[None])
+        arg_parser.add_argument('-td', nargs=1, default=[None])
 
         args = None
 
@@ -84,9 +84,9 @@ class Main:
         target_filename = args.t[0]
         k = args.k[0]
         alpha = args.a[0]
-        test = args.test[0]
+        test_dir = args.td[0]
 
-        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m, test
+        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m, test_dir
 
 
 if __name__ =="__main__":
