@@ -277,14 +277,12 @@ class LocateLang:
 		if self.strategy == "chunks":
 			location_langs, lang_y, x_pos = self.locate_chunks_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y)
+		elif compare_langs:
+			location_langs, lang_y, x_pos, average_bits = self.compare_lang_averages()
+			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
 		else:
 			location_langs, lang_y, x_pos, thresholds = self.locate_windows_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, thresholds=thresholds)
-
-		if compare_langs:
-			avg_location_langs, lang_y, x_pos, average_bits = self.compare_lang_averages()
-			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
-			self.plot_results(final_location_langs=self.merge_locations(avg_location_langs))
 
 		self.location_langs = self.merge_locations(location_langs)
 		self.plot_results(final_location_langs=self.location_langs)
