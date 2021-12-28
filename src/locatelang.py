@@ -27,7 +27,7 @@ class LocateLang:
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.1
-		self.AVERAGE_THRESHOLD = 0.60
+		self.AVERAGE_THRESHOLD = 0.40
 		# TODO: adjust window size
 		self.WINDOW_SIZE = 8 * max(self.multi_k)
 
@@ -91,10 +91,10 @@ class LocateLang:
 			for k in self.multi_k:
 				sum_entropies += self.langs[k][_id].fcm.entropy
 
-			if self.threshold_alphabet:
-				thresholds[lang_name] = (sum_entropies / len(self.multi_k) + log2(self.langs[k][_id].fcm.alphabet_size) / 2) / 2
-			else:
+			if not self.threshold_alphabet:
 				thresholds[lang_name] = sum_entropies / len(self.multi_k)
+			else:
+				thresholds[lang_name] = (sum_entropies / len(self.multi_k) + log2(self.langs[k][_id].fcm.alphabet_size) / 2) / 2
 
 
 		previous_pos = (0, 0)
@@ -154,7 +154,7 @@ class LocateLang:
 			n_chunk += 1
 
 
-	def compare_lang_averages(self):
+	def compare_lang(self):
 		logging.info("Starting Locating Langs for each window")
 		
 		f = open_file(self.target_filename, 'r')
@@ -174,14 +174,15 @@ class LocateLang:
 			window = window[1:] + next_char
 
 		average_bits = total_bits / ind / len(self.langs[self.k])
-		
+
 		logging.info(f"Average number of bits for each window: {average_bits}")
 
 		x_pos = [end_pos for _, end_pos in window_langs.keys()]
 		lang_y = defaultdict(lambda: [])
 
-		# at least 60 % smaller than average
-		threshold = average_bits * (1 - self.AVERAGE_THRESHOLD)
+		# at least 40 % smaller than average
+		threshold = average_bits * self.AVERAGE_THRESHOLD
+
 		for w, langs in window_langs.items():
 			for lang, n_bits in langs.items():
 				lang_y[lang].append(n_bits)
@@ -242,8 +243,8 @@ class LocateLang:
 
 			if average_bits:
 				plt.plot(x_pos, [average_bits] * len(x_pos), label='Total Average Bits')
-				plt.plot(x_pos, [average_bits * (1 - self.AVERAGE_THRESHOLD)] * len(x_pos), label='Average Threshold')
-				plt.ylim(0, average_bits + 1)
+				plt.plot(x_pos, [average_bits * self.AVERAGE_THRESHOLD] * len(x_pos), label='Threshold')
+				plt.ylim(0, average_bits * 1.1)
 			
 			if thresholds:
 				[plt.plot(x_pos, [threshold] * len(x_pos), label=f"{lang} Threshold", color=label_colors[lang])\
@@ -278,7 +279,7 @@ class LocateLang:
 			location_langs, lang_y, x_pos = self.locate_chunks_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y)
 		elif compare_langs:
-			location_langs, lang_y, x_pos, average_bits = self.compare_lang_averages()
+			location_langs, lang_y, x_pos, average_bits = self.compare_lang()
 			self.plot_results(x_pos=x_pos, lang_y=lang_y, average_bits=average_bits)
 		else:
 			location_langs, lang_y, x_pos, thresholds = self.locate_windows_lang()
