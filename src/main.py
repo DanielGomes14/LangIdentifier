@@ -43,7 +43,7 @@ class Main:
                     right_predictions += 1
                 print(f"\nFor {lang} file:")
                 print(f"\t- Guessed language: {guessed_lang}")
-                print(f"\t- Accuracy: {right_predictions/(i+1)}")
+                print(f"-Accuracy: {right_predictions/(i+1)}")
         if self.locatelang:
             [print(f"Position {pos}, language: {lang}") for pos, lang in self.locatelang.location_langs.items()]
 
