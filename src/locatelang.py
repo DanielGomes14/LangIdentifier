@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import matplotlib.patches as mpatches
 from utils import open_file, open_dir
-
+from math import log2
 
 class LocateLang:
-	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.01, multi_k=[]) -> None:
+	def __init__(self, dir_ref_files, target_filename, k=3, alpha=0.01, multi_k=[], threshold_alphabet=False) -> None:
 		self.dir_ref_files = dir_ref_files if dir_ref_files[-1] == '/' or dir_ref_files[-1] == "\\" else f"{dir_ref_files}/"
 		self.target_filename = target_filename
 		self.k = k
@@ -22,6 +22,8 @@ class LocateLang:
 		self.location_langs = {}
 
 		self.langs = self.get_langs()
+
+		self.threshold_alphabet = threshold_alphabet
 
 		self.CHUNK_SIZE = 10_000
 		self.CHUNKS_THRESHOLD = 0.1
@@ -88,7 +90,12 @@ class LocateLang:
 			sum_entropies = 0
 			for k in self.multi_k:
 				sum_entropies += self.langs[k][_id].fcm.entropy
-			thresholds[lang_name] = sum_entropies / len(self.multi_k)
+
+			if self.threshold_alphabet:
+				thresholds[lang_name] = (sum_entropies / len(self.multi_k) + log2(self.langs[k][_id].fcm.alphabet_size) / 2) / 2
+			else:
+				thresholds[lang_name] = sum_entropies / len(self.multi_k)
+
 
 		previous_pos = (0, 0)
 		for initial_pos in range(len(target_text)-self.WINDOW_SIZE):
@@ -102,6 +109,7 @@ class LocateLang:
 				for k in self.multi_k:
 					window_bits += self.langs[k][_id].bits_compress_target(window_text)
 				average_window_bits = window_bits / (self.WINDOW_SIZE * len(self.multi_k))
+
 				lang_y[lang_name].append(average_window_bits)
 				# noise reduction
 				# if the previous window was of this language then increase 5 % of the threshold 
@@ -116,8 +124,8 @@ class LocateLang:
 	def locate_chunks_lang(self):
 		f = open_file(self.target_filename, 'r')
 
-		location_langs, n_chunk, lang, previous_n_bits, lang_y, x_pos =\
-			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: []), []
+		location_langs, n_chunk, lang, previous_n_bits, lang_y, x_pos, end_pos =\
+			defaultdict(lambda: []), 0, None, 0, defaultdict(lambda: []), [], 0
 
 		while True:
 			target_text = f.read(self.CHUNK_SIZE)
@@ -125,8 +133,10 @@ class LocateLang:
 			if target_text == '':
 				return location_langs, lang_y, x_pos
 
-			start_pos = n_chunk * self.CHUNK_SIZE
-			end_pos = start_pos + self.CHUNK_SIZE
+			len_target_text = len(target_text)
+
+			start_pos = end_pos + 1
+			end_pos = start_pos + len_target_text
 			pos = (start_pos, end_pos)
 			x_pos.append(end_pos)
 			lang, n_bits, lang_bits = self.guess_language(target_text, lang)
@@ -139,9 +149,7 @@ class LocateLang:
 				[lang_y[other_lang.lang_name].append(-50000) for other_lang in self.langs[self.k] if other_lang.lang_name != lang.lang_name]
 
 			previous_n_bits = n_bits
-			start_pos = n_chunk * self.CHUNK_SIZE
 			location_langs[pos].append(lang.lang_name)
-			logging.info(f"Guessed language: {lang.lang_name}")
 
 			n_chunk += 1
 
@@ -221,12 +229,16 @@ class LocateLang:
 		
 			plt.yticks(list(label_langs.values()), list(label_langs.keys()))
 
+			plt.xlabel("Characters")
+
 			plt.legend(handles=patches)
 		else:
 			for lang, y in lang_y.items():
 				plt.plot(x_pos, y, 'o', label=f"{lang} Average Bits", color=label_colors[lang])
 			
 			plt.ylim(bottom=0)
+			plt.ylabel("Number of Bits")
+			plt.xlabel("Characters")
 
 			if average_bits:
 				plt.plot(x_pos, [average_bits] * len(x_pos), label='Total Average Bits')

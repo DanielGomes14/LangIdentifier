@@ -11,8 +11,8 @@ class Main:
         self.lang = None
         self.findlang = None
         self.locatelang = None
-        ref_filename, dir_ref_files, target_filename,\
-            locate_lang, compare_langs, k, alpha, multi_k, test_dir =\
+        ref_filename, dir_ref_files, target_filename, locate_lang,\
+            compare_langs, k, alpha, multi_k, test_dir, threshold_alphabet =\
                 self.check_arguments()
 
         if not dir_ref_files:
@@ -20,7 +20,7 @@ class Main:
             self.lang.run()
             self.lang.bits_compress_target()
         elif locate_lang:
-            self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha, multi_k)
+            self.locatelang = LocateLang(dir_ref_files, target_filename, k, alpha, multi_k, threshold_alphabet)
             self.locatelang.run(compare_langs)
         else:
             self.test_dir = test_dir
@@ -51,9 +51,15 @@ class Main:
     def usage(self):
         print("Usage: python3 main.py\
                 \n\t-r <file name for reference file:str>\
+                \n\t-d <directory name for reference files:str>\
                 \n\t-t <file name for target file:str>\
+                \n\t-td <directory name for target files:str>\
                 \n\t-k <context size:int>\
-                \n\t-a <alpha:int>\n")
+                \n\t-a <alpha:int>\n\
+                \n\t-l <use LocateLang module>\
+                \n\t-m <multiple k values:int[]> Example: 2 3 4\
+                \n\t-ta <threshold with alphabet size in consideration>\
+                \n\t-c <use compareLang method>")
 
 
     def check_arguments(self):
@@ -67,6 +73,7 @@ class Main:
         arg_parser.add_argument('-k', nargs=1, type=int, default=[3])
         arg_parser.add_argument('-a', nargs=1, type=float, default=[0.001])
         arg_parser.add_argument('-l', action='store_true')
+        arg_parser.add_argument('-ta', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
         arg_parser.add_argument('-m', nargs='*', type=int, default=[])
         arg_parser.add_argument('-td', nargs=1, default=[None])
@@ -86,7 +93,8 @@ class Main:
         alpha = args.a[0]
         test_dir = args.td[0]
 
-        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k, alpha, args.m, test_dir
+        return ref_filename, dir_ref_files, target_filename, args.l, args.c, k,\
+            alpha, args.m, test_dir, args.threshold_alphabet
 
 
 if __name__ =="__main__":

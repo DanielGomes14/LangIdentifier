@@ -68,7 +68,9 @@ class FindLang:
 				f.close()
 				target_lang_name = target_filename.split('.')[-2].split('/')[-1]
 				[lang.bits_compress_target(target_text) for lang in langs]
-				self.guessed_langs[target_lang_name] = self.guess_language(langs)
+				guessed_lang = self.guess_language(langs)
+				self.guessed_langs[target_lang_name] = guessed_lang
+				logging.info(f"For {target_lang_name} it was guessed {guessed_lang}")
 
 			return
 
