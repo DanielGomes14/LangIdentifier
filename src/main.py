@@ -55,7 +55,7 @@ class Main:
                 \n\t-t <file name for target file:str>\
                 \n\t-td <directory name for target files:str>\
                 \n\t-k <context size:int>\
-                \n\t-a <alpha:int>\n\
+                \n\t-a <alpha:int>\
                 \n\t-l <use LocateLang module>\
                 \n\t-m <multiple k values:int[]> Example: 2 3 4\
                 \n\t-ta <threshold with alphabet size in consideration>\
