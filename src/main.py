@@ -76,7 +76,7 @@ class Main:
         arg_parser.add_argument('-ta', action='store_true')
         arg_parser.add_argument('-c', action='store_true')
         arg_parser.add_argument('-m', nargs='*', type=int, default=[])
-        arg_parser.add_argument('-td', nargs=1, default=[None])
+        arg_parser.add_argument('-td', action='store_true')
 
         args = None
 
@@ -94,7 +94,7 @@ class Main:
         test_dir = args.td[0]
 
         return ref_filename, dir_ref_files, target_filename, args.l, args.c, k,\
-            alpha, args.m, test_dir, args.threshold_alphabet
+            alpha, args.m, test_dir, args.td
 
 
 if __name__ =="__main__":
